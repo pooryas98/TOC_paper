@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment - IMPORTANT! Replace .venv with your env name if different
+.venv/
+venv/
+env/
+ENV/
+*/env/
+*/venv/
+*/.venv/
+
+# Configuration files containing secrets - IMPORTANT!
+.env
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Output / Results / Temporary directories
+results/
+keras_tuner_dir/
+*.csv # If you generate other CSVs you don't want committed
+
+# Data - Only add this if Datasets2003IR.csv is very large
+# Datasets2003IR.csv
+
+# Specific logs or large files if needed
+*.log
