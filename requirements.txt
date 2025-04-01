@@ -1,3 +1,4 @@
+joblib        # For saving/loading sklearn objects (like Scaler)
 keras-tuner   # For hyperparameter optimization of Keras models
 matplotlib    # For plotting results
 numpy         # For numerical operations

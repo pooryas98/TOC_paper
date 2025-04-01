@@ -1,9 +1,11 @@
-# Python
+# --- Python ---
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual environment - IMPORTANT! Replace .venv with your env name if different
+# --- Virtual Environment ---
+# Replace .venv with your virtual environment directory name if different
 .venv/
 venv/
 env/
@@ -12,10 +14,11 @@ ENV/
 */venv/
 */.venv/
 
-# Configuration files containing secrets - IMPORTANT!
+# --- Configuration ---
+# IMPORTANT: Ignore environment file containing potentially sensitive paths or settings
 .env
 
-# IDE / Editor specific files
+# --- IDE / Editor Files ---
 .vscode/
 .idea/
 *.suo
@@ -24,17 +27,38 @@ ENV/
 *.sln
 *.sw?
 
-# OS generated files
+# --- OS generated files ---
 .DS_Store
 Thumbs.db
 
-# Output / Results / Temporary directories
+# --- Output & Temporary Files ---
+# Results directory
 results/
+
+# KerasTuner directory
 keras_tuner_dir/
-*.csv # If you generate other CSVs you don't want committed
 
-# Data - Only add this if Datasets2003IR.csv is very large
-# Datasets2003IR.csv
-
-# Specific logs or large files if needed
+# Log files
 *.log
+*.log.*
+
+# Saved Models (adjust extensions if needed)
+*.pkl
+*.h5
+*.keras
+*.joblib
+
+# --- Data ---
+# Typically keep input data unless very large or proprietary
+# Example: Ignore large data files if necessary
+# LargeDataset.csv
+
+# --- Other ---
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
