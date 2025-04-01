@@ -79,18 +79,21 @@ def build_hypermodel(hp: kt.HyperParameters, model_type: str, n_steps: int, conf
     else:
         raise ValueError("Invalid model_type. Choose 'RNN' or 'LSTM'.")
 
-    # Tune Optional Dropout
-    use_dropout = False
+    # Check if dropout tuning is enabled in the main configuration
     if config_params['NN_TUNER_HP_USE_DROPOUT']:
-         # Let tuner decide if dropout should be used, even if globally enabled for tuning space
-         use_dropout = hp.Boolean("use_dropout", default=True)
-
-    if use_dropout:
-         hp_dropout_rate = hp.Float('dropout_rate',
-                                    min_value=config_params['NN_TUNER_HP_DROPOUT_MIN'],
-                                    max_value=config_params['NN_TUNER_HP_DROPOUT_MAX'],
-                                    step=config_params['NN_TUNER_HP_DROPOUT_STEP'])
-         model.add(Dropout(rate=hp_dropout_rate, name="tuned_dropout"))
+        # If enabled, ALWAYS add a Dropout layer.
+        # We REMOVE the hp.Boolean("use_dropout") choice.
+        # We only tune the dropout RATE.
+        hp_dropout_rate = hp.Float('dropout_rate',
+                                   min_value=config_params['NN_TUNER_HP_DROPOUT_MIN'],
+                                   max_value=config_params['NN_TUNER_HP_DROPOUT_MAX'],
+                                   step=config_params['NN_TUNER_HP_DROPOUT_STEP'])
+        model.add(Dropout(rate=hp_dropout_rate, name="tuned_dropout"))
+        # Optional: Log that dropout is being added and its rate tuned
+        # logger.debug("Tuning: Added forced Dropout layer, tuning rate.")
+    # else:
+        # If NN_TUNER_HP_USE_DROPOUT is False in config, no Dropout layer is added here.
+        # logger.debug("Tuning: Dropout tuning disabled in config, skipping Dropout layer.")
 
     # Output Layer
     model.add(Dense(1, name="output_dense"))
@@ -99,7 +102,7 @@ def build_hypermodel(hp: kt.HyperParameters, model_type: str, n_steps: int, conf
     hp_learning_rate: float = hp.Float('learning_rate',
                                       min_value=config_params['NN_TUNER_HP_LR_MIN'],
                                       max_value=config_params['NN_TUNER_HP_LR_MAX'],
-                                      sampling='log')
+                                      sampling='log') # Use logarithmic sampling for LR
     hp_optimizer_choice: str = hp.Choice('optimizer', values=config_params['NN_TUNER_HP_OPTIMIZER_CHOICES'])
 
     optimizer = get_optimizer(hp_optimizer_choice, hp_learning_rate)
@@ -113,7 +116,7 @@ def train_nn(
     model_type: str,
     train_data: pd.DataFrame,
     val_data: Optional[pd.DataFrame],
-    config_params: Dict[str, Any] # Pass relevant config
+    config_params: Dict[str, Any] # Pass relevant config (will have updated paths)
 ) -> Tuple[Optional[Model], Optional[MinMaxScaler], Optional[Dict[str, Any]]]:
     """
     Trains an RNN or LSTM model, potentially using KerasTuner.
@@ -278,7 +281,10 @@ def train_nn(
             tuner_class = kt.RandomSearch
             tuner_type = 'RandomSearch' # Update type for logging/params
 
-        project_name = f"{config_params['NN_TUNER_PROJECT_NAME_PREFIX']}_{model_type}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
+        # project_name should be unique per run if tuner_dir is reused, but now tuner_dir itself is unique per run
+        project_name = f"{config_params['NN_TUNER_PROJECT_NAME_PREFIX']}_{model_type}" # Simplified project name
+
+        # tuner_dir is now the timestamped path passed from main.py
         tuner_dir = config_params['KERAS_TUNER_DIR']
         tuner_overwrite = config_params['KERAS_TUNER_OVERWRITE']
         max_trials = config_params['NN_TUNER_MAX_TRIALS']
@@ -286,11 +292,13 @@ def train_nn(
         tuner_epochs = config_params['NN_TUNER_EPOCHS']
 
 
-        # Store tuner config
+        # Store tuner config (tuner_dir will reflect the run-specific path)
         model_params_used['tuner_config'] = {
             'type': tuner_type, 'objective': tuner_objective, 'max_trials': max_trials,
             'executions_per_trial': executions_per_trial, 'epochs_per_trial': tuner_epochs,
-            'directory': tuner_dir, 'project_name': project_name, 'overwrite': tuner_overwrite,
+            'directory': tuner_dir, # This now points inside the timestamped results
+            'project_name': project_name, # Simpler name okay as directory is unique
+            'overwrite': tuner_overwrite,
             'seed': config_params['RANDOM_SEED']
             }
 
@@ -300,7 +308,7 @@ def train_nn(
             objective=kt.Objective(tuner_objective, direction="min"), # Assume minimization objective
             max_trials=max_trials,
             executions_per_trial=executions_per_trial,
-            directory=tuner_dir,
+            directory=tuner_dir, # Use the run-specific tuner directory path
             project_name=project_name,
             seed=config_params['RANDOM_SEED'],
             overwrite=tuner_overwrite
@@ -308,11 +316,11 @@ def train_nn(
         )
 
         logger.info(f"--- Tuner ({tuner_type}) Search Space Summary ---")
-        # --- MODIFICATION START ---
-        # tuner.search_space_summary(print_fn=logger.info) # Log summary via logger <-- OLD
-        tuner.search_space_summary() # <-- NEW (Prints to stdout/stderr, check console or log file)
-        # --- MODIFICATION END ---
+        # Log tuner summary to console/log file
+        tuner.search_space_summary() # Prints directly
         logger.info(f"--- Starting Tuner Search (Max Trials: {max_trials}, Epochs/Trial: {tuner_epochs}) ---")
+        logger.info(f"Tuner results will be stored in: {os.path.join(tuner_dir, project_name)}")
+
 
         search_callbacks: List[keras.callbacks.Callback] = []
         if early_stopping_patience > 0:
@@ -547,7 +555,7 @@ def forecast_nn(
 def save_nn_model(model: Model, file_path: str):
     """Saves a Keras model."""
     try:
-        # Ensure directory exists
+        # Ensure directory exists (model saving might be inside 'saved_models' or 'saved_final_models')
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
         # Determine format and ensure correct extension
@@ -569,16 +577,14 @@ def save_nn_model(model: Model, file_path: str):
         logger.error(f"Error saving Keras model to {file_path}: {e}", exc_info=True)
 
 
-# --- Specific Model Runners (Updated Signatures) ---
-# These functions now only orchestrate calls to train_nn and forecast_nn
-
+# --- Unified Runner Function ---
 def run_nn_model(
     model_type: str, # 'RNN' or 'LSTM'
     train_data: pd.DataFrame,
     val_data: Optional[pd.DataFrame],
     test_periods: int, # Corresponds to test set size OR forecast horizon
     test_index: pd.DatetimeIndex, # Corresponds to test set index OR future index
-    config_params: Dict[str, Any]
+    config_params: Dict[str, Any] # Will have updated paths
 ) -> Tuple[pd.Series, Optional[Dict[str, Any]], Optional[Model]]:
     """
     Orchestrates NN training and forecasting for either evaluation or final prediction.
@@ -589,7 +595,7 @@ def run_nn_model(
         val_data: Validation data (optional, used for evaluation run tuning/early stopping).
         test_periods: Number of periods to forecast (test set size or future horizon).
         test_index: The index for the forecast series (test set index or future index).
-        config_params: Configuration dictionary.
+        config_params: Configuration dictionary (with potentially updated paths).
 
     Returns:
         Tuple containing:
@@ -610,7 +616,7 @@ def run_nn_model(
         model, scaler, model_params = train_nn(model_type, train_data, val_data, config_params)
 
         # Proceed to forecast only if training was successful
-        if model and scaler and model_params.get('status') == 'Trained Successfully':
+        if model and scaler and model_params and model_params.get('status') == 'Trained Successfully':
             # Generate forecast using the trained model, scaler, and the *original* train_data
             # for initialization. forecast_nn handles the iterative prediction.
             # Pass the *entire* train_data used for this run (could be train split or full data)
@@ -637,5 +643,9 @@ def run_nn_model(
     # Return forecast Series, the parameters dictionary (which includes scaler ref), and the fitted model
     # Ensure the returned Series uses the correct index (test_index or future_index)
     forecast_series = pd.Series(forecast_values, index=test_index, name=model_type)
+
+    # Ensure model_params is not None before returning
+    if model_params is None:
+        model_params = {'model_type': model_type, 'status': 'Failed before parameter capture'}
 
     return forecast_series, model_params, model

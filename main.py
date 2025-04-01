@@ -7,6 +7,7 @@ import time # For timing models
 import os # For creating directories
 import logging # Use configured logger
 import json # For saving parameters
+import datetime # <-- Import datetime
 from typing import Dict, List, Tuple, Optional, Any
 
 # Import Keras components needed later
@@ -19,7 +20,7 @@ try:
     from src import data_loader
     from src.models import sarima_model, prophet_model, nn_models
     from src import evaluation
-    from src import plotting
+    from src import plotting # Import the NEW plotting module
     # Import specific model types if needed for type hinting
     from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
     from prophet import Prophet
@@ -42,26 +43,27 @@ def set_seeds(seed: int) -> None:
     # Add other library seeds if necessary (e.g., random.seed(seed))
     logger.info(f"Set random seeds to: {seed}")
 
-def save_run_parameters(params_dict: Dict[str, Any], file_path: str):
-    """Saves the run parameters dictionary to a JSON file."""
-    try:
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        # Custom encoder to handle numpy types etc. if needed
-        class NpEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, np.integer): return int(obj)
-                if isinstance(obj, np.floating): return float(obj)
-                if isinstance(obj, np.ndarray): return obj.tolist()
-                if isinstance(obj, pd.Timestamp): return obj.isoformat()
-                if isinstance(obj, (pd.Timedelta, pd.Period)): return str(obj)
-                # Handle model objects and scaler object during serialization
-                if isinstance(obj, (SARIMAXResultsWrapper, Prophet, Model, MinMaxScaler)):
-                     return f"<Object type: {type(obj).__name__}>" # Don't serialize models/scalers here
-                try:
-                    return super(NpEncoder, self).default(obj)
-                except TypeError:
-                     return f"<Unserializable type: {type(obj).__name__}>"
+# Custom JSON encoder to handle non-serializable types (like model objects, numpy types)
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        if isinstance(obj, pd.Timestamp): return obj.isoformat()
+        if isinstance(obj, (pd.Timedelta, pd.Period)): return str(obj)
+        # Handle model objects and scaler object during serialization
+        if isinstance(obj, (SARIMAXResultsWrapper, Prophet, Model, MinMaxScaler)):
+             return f"<Object type: {type(obj).__name__}>" # Don't serialize models/scalers here
+        try:
+            return super(NpEncoder, self).default(obj)
+        except TypeError:
+             return f"<Unserializable type: {type(obj).__name__}>"
 
+def save_run_parameters(params_dict: Dict[str, Any], file_path: str):
+    """Saves the run parameters dictionary to a JSON file using the custom encoder."""
+    try:
+        # Directory creation is handled upstream now, but keep for safety if called independently
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
             json.dump(params_dict, f, indent=4, cls=NpEncoder)
         logger.info(f"Run parameters saved successfully to: {file_path}")
@@ -74,13 +76,44 @@ def run_comparison() -> None:
     run_start_time = time.time()
     logger.info("--- Starting Forecasting Comparison Run ---")
 
-    # Load config into a dictionary for easy passing and saving
-    # Use the helper function defined in config.py
+    # --- MODIFICATION START: Timestamped Results Directory ---
     try:
          config_params = config.get_config_dict()
     except Exception as e:
          logger.error(f"Failed to retrieve configuration dictionary: {e}", exc_info=True)
          sys.exit(1)
+
+    # Generate timestamp for the run
+    run_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.info(f"Run Timestamp: {run_timestamp}")
+
+    # Get original base directories from config
+    original_results_dir = config_params.get('RESULTS_DIR', 'results')
+    # Get just the intended name for the tuner dir, relative to the results dir
+    original_tuner_dir_name = os.path.basename(config_params.get('KERAS_TUNER_DIR', 'keras_tuner_dir'))
+
+    # Create the path for the run-specific results directory
+    run_results_dir = os.path.join(original_results_dir, run_timestamp)
+
+    # Create the path for the run-specific tuner directory (inside the run results)
+    run_tuner_dir = os.path.join(run_results_dir, original_tuner_dir_name)
+
+    # Create the main run-specific directory
+    try:
+        os.makedirs(run_results_dir, exist_ok=True)
+        logger.info(f"Created run-specific results directory: {run_results_dir}")
+        # KerasTuner itself will create its specific project directories inside run_tuner_dir
+    except OSError as e:
+        logger.error(f"Fatal Error: Could not create run directory '{run_results_dir}'. Exiting. Error: {e}")
+        sys.exit(1)
+
+    # IMPORTANT: Update the config_params dictionary in memory for this run
+    config_params['RESULTS_DIR'] = run_results_dir
+    config_params['KERAS_TUNER_DIR'] = run_tuner_dir # Update tuner base dir path as well
+
+    # Add run identifier to the parameters that will be saved
+    config_params['RUN_IDENTIFIER'] = run_timestamp
+    # --- MODIFICATION END ---
 
 
     # Set seeds using value from config
@@ -99,7 +132,7 @@ def run_comparison() -> None:
             file_path=config_params['CSV_FILE_PATH'],
             date_column=config_params['DATE_COLUMN'],
             value_column=config_params['VALUE_COLUMN'],
-            config_params=config_params # Pass the whole dict
+            config_params=config_params # Pass the potentially modified config
         )
 
         if df is None or data_load_params.get('status') != 'Loaded Successfully':
@@ -119,7 +152,7 @@ def run_comparison() -> None:
     # --- 2. Initialize Results Storage ---
     logger.info("--- Stage 2: Initializing Results Storage ---")
     all_run_parameters: Dict[str, Any] = {
-        'config_settings': config_params,
+        'config_settings': config_params, # Store the modified config with timestamped paths
         'data_load_summary': data_load_params,
         'models': {}, # Store results per model here (for evaluation run)
         'final_forecast_runs': {} # Store results for final forecast run
@@ -127,6 +160,7 @@ def run_comparison() -> None:
     forecast_results: Dict[str, pd.DataFrame] = {} # Holds the forecast DataFrames ['yhat', 'yhat_lower', 'yhat_upper'] for EVALUATION
     evaluation_results_list: List[Dict[str, Any]] = [] # List of metric dicts per model
     fitted_models: Dict[str, Any] = {} # Store fitted model objects (from evaluation run) if SAVE_TRAINED_MODELS is True
+    future_forecast_results: Dict[str, pd.DataFrame] = {} # Initialize dictionary for final forecasts
 
     test_periods: int = len(test_df)
     test_index: pd.DatetimeIndex = test_df.index
@@ -150,7 +184,7 @@ def run_comparison() -> None:
                 train_data=train_df.copy(), # Use copy to be safe
                 test_periods=test_periods,
                 test_index=test_index,
-                config_params=config_params # Pass relevant config
+                config_params=config_params # Pass relevant config (with updated paths)
             )
             forecast_results[model_name] = sarima_forecast_df # Store forecast df
             if sarima_model_obj and config_params.get('SAVE_TRAINED_MODELS'):
@@ -183,7 +217,7 @@ def run_comparison() -> None:
                 train_data=train_df.copy(),
                 test_periods=test_periods,
                 test_index=test_index,
-                config_params=config_params
+                config_params=config_params # Pass relevant config (with updated paths)
             )
             forecast_results[model_name] = prophet_forecast_df
             if prophet_model_obj and config_params.get('SAVE_TRAINED_MODELS'):
@@ -213,22 +247,28 @@ def run_comparison() -> None:
         nn_model_obj: Optional[Model] = None
         try:
             # Use the unified run_nn_model function
+            # It receives config_params with updated KERAS_TUNER_DIR
             nn_forecast_series, nn_params_used, nn_model_obj = nn_models.run_nn_model(
                 model_type=model_name,
                 train_data=train_df.copy(),
                 val_data=val_df.copy() if val_df is not None else None, # Pass copy or None
                 test_periods=test_periods,
                 test_index=test_index,
-                config_params=config_params # Use original config for eval run (tuner enabled)
+                config_params=config_params # Use modified config for eval run (tuner enabled)
             )
             # Store forecast as DataFrame with 'yhat' column for consistency
-            forecast_results[model_name] = pd.DataFrame({'yhat': nn_forecast_series})
+            # Add NaN CI columns for consistent structure with other models
+            forecast_results[model_name] = pd.DataFrame({
+                'yhat': nn_forecast_series,
+                'yhat_lower': np.nan,
+                'yhat_upper': np.nan
+                })
             if nn_model_obj and config_params.get('SAVE_TRAINED_MODELS'):
                  fitted_models[model_name] = nn_model_obj # Includes scaler ref in params
 
         except Exception as e:
             logger.error(f"Unexpected error running {model_name} in main loop (Eval): {e}", exc_info=True)
-            forecast_results[model_name] = pd.DataFrame(np.nan, index=test_index, columns=['yhat'])
+            forecast_results[model_name] = pd.DataFrame(np.nan, index=test_index, columns=['yhat', 'yhat_lower', 'yhat_upper'])
             if nn_params_used is None: nn_params_used = {'model_type': model_name}
             nn_params_used['run_error'] = f"Main Loop Error: {e}"
 
@@ -243,7 +283,6 @@ def run_comparison() -> None:
 
     # --- 4. Evaluate Models (on Test Set) ---
     logger.info("--- Stage 4: Evaluating Forecasts ---")
-    # Prepare a DataFrame of point forecasts only
     point_forecasts_df = pd.DataFrame(index=test_index)
     for model, results_df in forecast_results.items():
          if isinstance(results_df, pd.DataFrame) and 'yhat' in results_df:
@@ -252,6 +291,7 @@ def run_comparison() -> None:
              logger.warning(f"No valid 'yhat' column found for {model} in forecast_results. Skipping evaluation.")
 
     metrics_to_calc = config_params['EVALUATION_METRICS']
+    evaluation_df: Optional[pd.DataFrame] = None # Initialize
 
     for model_name in point_forecasts_df.columns:
         if model_name not in all_run_parameters['models']:
@@ -260,39 +300,47 @@ def run_comparison() -> None:
 
         model_run_params = all_run_parameters['models'][model_name]
 
-        # Check if forecasts are all NaN before evaluation
         if point_forecasts_df[model_name].isnull().all():
             logger.warning(f"Skipping evaluation for {model_name}: All point forecasts are NaN.")
-            # Add NaN metrics to the params dict
             model_run_params['evaluation_metrics'] = {metric: np.nan for metric in metrics_to_calc}
             model_run_params['evaluation_status'] = 'Skipped - All NaN forecasts'
+            # Add a row of NaNs to the results list to ensure the model appears in the final DF
+            nan_metrics = {'Model': model_name}
+            for metric in metrics_to_calc: nan_metrics[metric] = np.nan
+            evaluation_results_list.append(nan_metrics)
+
         else:
             try:
                 eval_metrics: Dict[str, Any] = evaluation.evaluate_forecast(
                     y_true_series=test_df['y'],
                     y_pred_series=point_forecasts_df[model_name],
                     model_name=model_name,
-                    metrics_to_calculate=metrics_to_calc # Pass configured metrics
+                    metrics_to_calculate=metrics_to_calc
                 )
-                # Add evaluation metrics to the parameter store for this model
-                model_run_params['evaluation_metrics'] = {k: v for k, v in eval_metrics.items() if k != 'Model'} # Exclude 'Model' key
+                model_run_params['evaluation_metrics'] = {k: v for k, v in eval_metrics.items() if k != 'Model'}
                 model_run_params['evaluation_status'] = 'Success'
-                evaluation_results_list.append(eval_metrics) # Add to list for summary DataFrame
+                evaluation_results_list.append(eval_metrics)
 
             except Exception as e:
                  logger.error(f"Could not evaluate {model_name}. Error: {e}", exc_info=True)
                  model_run_params['evaluation_metrics'] = {metric: np.nan for metric in metrics_to_calc}
                  model_run_params['evaluation_status'] = f'Error: {e}'
+                 # Add a row of NaNs to the results list
+                 nan_metrics = {'Model': model_name}
+                 for metric in metrics_to_calc: nan_metrics[metric] = np.nan
+                 evaluation_results_list.append(nan_metrics)
 
 
-    # Convert list of evaluation dicts to DataFrame for display
-    evaluation_df: pd.DataFrame = pd.DataFrame(evaluation_results_list)
-    if not evaluation_df.empty:
-        # Add runtime from the parameter store to the evaluation summary DF
+    # Convert list of evaluation dicts to DataFrame for display and plotting
+    if evaluation_results_list:
+        evaluation_df = pd.DataFrame(evaluation_results_list)
         runtimes = {m: all_run_parameters['models'].get(m, {}).get('runtime_seconds', np.nan)
                     for m in evaluation_df['Model']}
         evaluation_df['Runtime (s)'] = evaluation_df['Model'].map(runtimes)
         evaluation_df = evaluation_df.set_index('Model')
+    else:
+         logger.warning("No models were evaluated, evaluation_df will be empty.")
+         evaluation_df = pd.DataFrame() # Ensure it's an empty DataFrame
 
 
     # --- 5. Display Results (Evaluation) ---
@@ -300,7 +348,6 @@ def run_comparison() -> None:
 
     logger.info("\n" + "="*20 + " Point Forecasts (Test Set) " + "="*20)
     try:
-        # Use context manager for cleaner display formatting
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
             logger.info(f"\n{point_forecasts_df}")
     except Exception as display_err:
@@ -310,7 +357,7 @@ def run_comparison() -> None:
 
     logger.info("\n" + "="*20 + " Evaluation Metrics " + "="*20)
     if not evaluation_df.empty:
-         # Format runtime column
+        # Format runtime column if it exists
         if 'Runtime (s)' in evaluation_df.columns:
             evaluation_df['Runtime (s)'] = pd.to_numeric(evaluation_df['Runtime (s)'], errors='coerce').map('{:.2f}'.format)
 
@@ -326,29 +373,31 @@ def run_comparison() -> None:
 
     # --- 6. Save Results (Evaluation Run) ---
     logger.info("--- Stage 6: Saving Evaluation Run Results ---")
-    results_dir = config_params['RESULTS_DIR']
+    # The results_dir will now be the timestamped one
+    results_dir = config_params['RESULTS_DIR'] # Gets the timestamped path e.g., results/20230101_120000
     save_results_flag = config_params['SAVE_RESULTS']
 
     if save_results_flag:
         logger.info(f"Attempting to save evaluation results to directory: '{results_dir}'")
         try:
-            os.makedirs(results_dir, exist_ok=True)
+            # os.makedirs(results_dir, exist_ok=True) # Main dir created at the start
 
-            # --- Save Parameters (Includes evaluation run params) ---
-            # Note: This file will be overwritten later if final forecasting runs and parameter saving is enabled
+            # Save Parameters (Includes evaluation run params)
             if config_params.get('SAVE_MODEL_PARAMETERS', False):
+                 # Path will be inside the timestamped folder
                  param_file = os.path.join(results_dir, "run_parameters.json")
+                 # Ensure all_run_parameters is up-to-date before saving
                  save_run_parameters(all_run_parameters, param_file)
 
-            # --- Save Evaluation Metrics ---
+            # Save Evaluation Metrics
             if not evaluation_df.empty:
                 eval_path = os.path.join(results_dir, "evaluation_metrics.csv")
-                evaluation_df.to_csv(eval_path, float_format='%.6f') # Higher precision for CSV
+                evaluation_df.to_csv(eval_path, float_format='%.6f')
                 logger.info(f"Saved evaluation metrics to {eval_path}")
             else:
                 logger.info("Skipping evaluation metrics save (no results).")
 
-            # --- Save Point Forecasts (Test Set) ---
+            # Save Point Forecasts (Test Set)
             if not point_forecasts_df.empty:
                 points_path = os.path.join(results_dir, "point_forecasts.csv")
                 point_forecasts_df.to_csv(points_path, float_format='%.6f')
@@ -356,10 +405,11 @@ def run_comparison() -> None:
             else:
                 logger.info("Skipping evaluation point forecasts save (no results).")
 
-            # --- Save Full Forecasts (Test Set, with CIs if available) ---
+            # Save Full Forecasts (Test Set, with CIs if available)
             all_eval_forecasts_saved = False
             for model_name, forecast_df in forecast_results.items():
                  if isinstance(forecast_df, pd.DataFrame) and not forecast_df.empty and not forecast_df.isnull().all().all():
+                     # Path will be inside the timestamped folder
                      model_forecast_path = os.path.join(results_dir, f"full_forecast_{model_name}.csv")
                      forecast_df.to_csv(model_forecast_path, float_format='%.6f')
                      logger.info(f"Saved evaluation full forecast for {model_name} to {model_forecast_path}")
@@ -369,32 +419,34 @@ def run_comparison() -> None:
 
             if not all_eval_forecasts_saved: logger.warning("No evaluation full forecasts were saved.")
 
-            # --- Save Trained Models (From Evaluation Run) ---
+            # Save Trained Models (From Evaluation Run)
             if config_params.get('SAVE_TRAINED_MODELS', False):
-                 models_dir = os.path.join(results_dir, 'saved_models') # Dir for models from EVALUATION RUN
-                 os.makedirs(models_dir, exist_ok=True)
+                 # saved_models dir will be inside the timestamped folder
+                 models_dir = os.path.join(results_dir, 'saved_models')
+                 os.makedirs(models_dir, exist_ok=True) # Create subdir if needed
                  logger.info(f"Attempting to save trained models (from evaluation run) to: {models_dir}")
                  models_saved_count = 0
                  for model_name, model_obj in fitted_models.items():
                      if model_obj:
                          try:
-                             save_path = os.path.join(models_dir, f"model_{model_name}") # Extension added by save func
+                             # Construct path inside timestamped/saved_models
+                             save_path = os.path.join(models_dir, f"model_{model_name}")
                              if model_name == 'SARIMA':
                                  sarima_model.save_sarima_model(model_obj, save_path + ".pkl")
                              elif model_name == 'Prophet':
                                  prophet_model.save_prophet_model(model_obj, save_path + ".pkl")
                              elif model_name in ['RNN', 'LSTM']:
-                                 nn_models.save_nn_model(model_obj, save_path)
-                                 # Also save the scaler used in the evaluation run
+                                 nn_models.save_nn_model(model_obj, save_path) # Will add .keras or .h5
+                                 # Also save the scaler
                                  eval_nn_params = all_run_parameters.get('models', {}).get(model_name, {})
                                  scaler_obj_eval = eval_nn_params.get('scaler_object_ref')
-                                 if scaler_obj_eval:
+                                 if scaler_obj_eval and isinstance(scaler_obj_eval, MinMaxScaler):
+                                     # Construct path inside timestamped/saved_models
                                      scaler_path_eval = os.path.join(models_dir, f"scaler_{model_name}.joblib")
                                      joblib.dump(scaler_obj_eval, scaler_path_eval)
                                      logger.info(f"Saved evaluation NN scaler for {model_name} to {scaler_path_eval}")
                                  else:
-                                     logger.warning(f"Could not find scaler object reference to save for evaluation NN model {model_name}")
-
+                                     logger.warning(f"Could not find/verify scaler object reference to save for evaluation NN model {model_name}")
                              else:
                                  logger.warning(f"Don't know how to save evaluation model type: {model_name}")
                                  continue
@@ -403,190 +455,128 @@ def run_comparison() -> None:
                              logger.error(f"Failed to save evaluation model {model_name}: {save_model_err}", exc_info=True)
                  logger.info(f"Finished saving evaluation run models ({models_saved_count}/{len(fitted_models)} saved successfully).")
 
-
         except Exception as e:
             logger.error(f"Error during evaluation results saving: {e}", exc_info=True)
     else:
         logger.info("Skipping Evaluation Results Saving (SAVE_RESULTS=False in config).")
 
-
-    # --- 7. Plot Results (Evaluation Run) ---
-    logger.info("--- Stage 7: Plotting Evaluation Results ---")
-    # Combine train and validation data for plotting history
-    plot_train_df = pd.concat([train_df, val_df]) if val_df is not None else train_df
-
-    # Generate comprehensive title for evaluation plots
-    eval_plot_title = (f"Ozone Column Forecasting Comparison (Evaluation on Test Set)\n"
-                      f"Data: {os.path.basename(config_params['CSV_FILE_PATH'])} ({config_params['VALUE_COLUMN']} column)\n"
-                      f"Train/Val/Test Split: {len(train_df)}/{len(val_df) if val_df is not None else 0}/{len(test_df)} points | "
-                      f"Freq: {df.index.freqstr or 'Inferred'}")
-
-    # Check if there's anything to plot from the evaluation run
-    has_eval = not evaluation_df.empty
-    has_eval_forecasts = any(
-        isinstance(df_res, pd.DataFrame) and not df_res.empty and not df_res.isnull().all().all()
-        for df_res in forecast_results.values()
-    )
-
-    if has_eval or has_eval_forecasts:
-        try:
-            plotting.plot_forecast_comparison(
-                train_df=plot_train_df, # History: Train+Val
-                test_df=test_df,        # Actuals: Test
-                forecast_dict=forecast_results, # Forecasts for the test set period
-                evaluation_df=evaluation_df,    # Metrics calculated on test set
-                config_params=config_params,    # For save/show/format options
-                main_title=eval_plot_title
-            )
-        except ImportError:
-             logger.error("Evaluation plotting skipped: matplotlib or its dependencies not found. Install with 'pip install matplotlib'")
-        except Exception as e:
-            logger.error(f"Could not generate evaluation plots. Error: {e}", exc_info=True)
-    else:
-        logger.warning("Skipping evaluation plotting as no models produced valid forecasts or evaluation results.")
-
-
-    # --- Stage 8: Final Forecasting (Train on Full Data, Predict Future) ---
-    logger.info("--- Stage 8: Final Forecasting ---")
+    # --- Stage 7: Final Forecasting (Train on Full Data, Predict Future) ---
+    logger.info("--- Stage 7: Final Forecasting ---") # Changed log stage number for consistency
     if config_params['RUN_FINAL_FORECAST']:
-        logger.info(f"Starting final forecast generation for {config_params['FORECAST_HORIZON']} periods beyond the end of the dataset.")
+        logger.info(f"Starting final forecast generation for {config_params['FORECAST_HORIZON']} periods.")
 
-        if df is None:
+        if df is None: # Check again if full df is available
             logger.error("Cannot run final forecast: Original DataFrame 'df' is not available.")
-            # Decide how to proceed - maybe exit? For now, just skip this stage.
             config_params['RUN_FINAL_FORECAST'] = False # Mark as skipped
         else:
-            # Use the full dataset for training
-            full_train_df = df.copy()
+            full_train_df = df.copy() # Use the original full dataframe
             forecast_horizon = config_params['FORECAST_HORIZON']
-            future_forecast_results: Dict[str, pd.DataFrame] = {}
-            fitted_final_models: Dict[str, Any] = {} # Store models trained on full data
+            # future_forecast_results = {} # Already initialized in Stage 2
+            fitted_final_models: Dict[str, Any] = {}
 
-            # --- Determine Future Index ---
+            # Determine Future Index
             future_index: Optional[pd.DatetimeIndex] = None
             last_date = full_train_df.index[-1]
-            data_freq = full_train_df.index.freq # Use freq from the loaded df
+            data_freq = full_train_df.index.freq
             if data_freq:
                 try:
                     future_index = pd.date_range(start=last_date + data_freq, periods=forecast_horizon, freq=data_freq)
-                    logger.info(f"Generated future index for {forecast_horizon} periods starting after {last_date} with frequency {data_freq}.")
+                    logger.info(f"Generated future index for {forecast_horizon} periods starting after {last_date}.")
                 except Exception as freq_err:
-                     logger.error(f"Error generating future date range with frequency {data_freq}: {freq_err}. Final forecasting skipped.", exc_info=True)
-                     config_params['RUN_FINAL_FORECAST'] = False # Mark as skipped
+                     logger.error(f"Error generating future date range: {freq_err}. Final forecasting skipped.", exc_info=True)
+                     config_params['RUN_FINAL_FORECAST'] = False
             else:
-                logger.error("Cannot generate future index: Data frequency not found on full dataset index. Final forecasting skipped.")
-                config_params['RUN_FINAL_FORECAST'] = False # Mark as skipped
+                logger.error("Cannot generate future index: Frequency not found. Final forecasting skipped.")
+                config_params['RUN_FINAL_FORECAST'] = False
 
-
+            # Proceed only if future index was generated
             if future_index is not None:
-                models_to_run_final = config_params.get('MODELS_TO_RUN', []) # Use the same list
+                models_to_run_final = config_params.get('MODELS_TO_RUN', [])
 
-                # --- Retrain and Forecast on Full Data ---
                 for model_name in models_to_run_final:
                     start_time = time.time()
                     logger.info(f"--- Running Final Forecast for {model_name} ---")
                     model_forecast_df: Optional[pd.DataFrame] = None
                     model_params_used: Optional[Dict[str, Any]] = None
                     model_obj: Optional[Any] = None
-                    # Default empty forecast structure
                     empty_forecast = pd.DataFrame(np.nan, index=future_index, columns=['yhat', 'yhat_lower', 'yhat_upper'])
-
 
                     try:
                         if model_name == 'SARIMA':
-                            # Call run_sarima to retrain on full data. Prediction logic is now handled outside run_sarima.
                             _, sarima_params, trained_sarima = sarima_model.run_sarima(
                                  train_data=full_train_df, # Train on full data
-                                 test_periods=1, # Dummy value, not used for actual prediction range
+                                 test_periods=1, # Dummy value
                                  test_index=pd.DatetimeIndex([future_index[0]]), # Dummy index
-                                 config_params=config_params
+                                 config_params=config_params # Pass modified config
                             )
-                            model_params_used = sarima_params # Store params from training run
+                            model_params_used = sarima_params
                             if trained_sarima:
                                 fitted_final_models[model_name] = trained_sarima
-                                logger.info(f"SARIMA retrained on full data. Generating {forecast_horizon} step forecast...")
+                                logger.info(f"SARIMA retrained. Generating {forecast_horizon} step forecast...")
                                 pred = trained_sarima.get_forecast(steps=forecast_horizon)
                                 forecast_summary = pred.summary_frame(alpha=1.0 - config_params.get('PROPHET_INTERVAL_WIDTH', 0.95))
-                                forecast_summary.index = future_index # Assign correct future index
+                                forecast_summary.index = future_index
                                 model_forecast_df = forecast_summary[['mean', 'mean_ci_lower', 'mean_ci_upper']].rename(
                                     columns={'mean': 'yhat', 'mean_ci_lower': 'yhat_lower', 'mean_ci_upper': 'yhat_upper'}
                                 )
                             else:
-                                logger.error(f"SARIMA retraining on full data failed. Cannot generate final forecast.")
+                                logger.error(f"SARIMA retraining failed.")
                                 model_forecast_df = empty_forecast.copy()
 
-
                         elif model_name == 'Prophet':
-                            # Prophet's run_prophet handles forecasting horizon internally via make_future_dataframe
                             model_forecast_df, model_params_used, model_obj = prophet_model.run_prophet(
                                 train_data=full_train_df,
-                                test_periods=forecast_horizon, # Use horizon here
-                                test_index=future_index, # Pass future index
-                                config_params=config_params
+                                test_periods=forecast_horizon,
+                                test_index=future_index,
+                                config_params=config_params # Pass modified config
                             )
                             if model_obj: fitted_final_models[model_name] = model_obj
-                            # Ensure columns match standard structure if CI missing
-                            if model_forecast_df is not None and 'yhat_lower' not in model_forecast_df.columns:
-                                model_forecast_df['yhat_lower'] = np.nan
-                                model_forecast_df['yhat_upper'] = np.nan
-                            elif model_forecast_df is None:
+                            if model_forecast_df is not None:
+                                # Ensure standard columns exist even if Prophet returns fewer
+                                if 'yhat_lower' not in model_forecast_df: model_forecast_df['yhat_lower'] = np.nan
+                                if 'yhat_upper' not in model_forecast_df: model_forecast_df['yhat_upper'] = np.nan
+                            else:
                                  model_forecast_df = empty_forecast.copy()
 
-
                         elif model_name in ['RNN', 'LSTM']:
-                            # --- MODIFICATION START ---
-                            # Create a copy of config for this run and disable tuner
                             final_nn_config_params = config_params.copy()
-                            final_nn_config_params['USE_KERAS_TUNER'] = False # <<< Force disable tuner
+                            final_nn_config_params['USE_KERAS_TUNER'] = False # Disable tuner for final run
                             logger.info(f"Temporarily disabling KerasTuner for final {model_name} retraining.")
-                            # --- MODIFICATION END ---
 
-                            # Retrain on full data (no validation set) then predict future steps
                             nn_forecast_series, model_params_used, model_obj = nn_models.run_nn_model(
                                 model_type=model_name,
-                                train_data=full_train_df, # Use full data
-                                val_data=None, # No validation for final training
-                                test_periods=forecast_horizon, # Predict this many steps
-                                test_index=future_index, # Use the future index
-                                # --- MODIFICATION START ---
-                                config_params=final_nn_config_params # <<< Pass modified config
-                                # --- MODIFICATION END ---
+                                train_data=full_train_df,
+                                val_data=None, # No validation
+                                test_periods=forecast_horizon,
+                                test_index=future_index,
+                                config_params=final_nn_config_params # Pass config with Tuner disabled
                              )
-                            # run_nn_model returns forecast Series with the future_index
-                            # Convert to DataFrame format, add NaN CI columns
                             if isinstance(nn_forecast_series, pd.Series):
                                 model_forecast_df = pd.DataFrame({
                                     'yhat': nn_forecast_series,
                                     'yhat_lower': np.nan,
                                     'yhat_upper': np.nan
                                     }, index=future_index)
-                            else: # Handle case where run_nn_model failed
+                            else:
                                 model_forecast_df = empty_forecast.copy()
-
                             if model_obj: fitted_final_models[model_name] = model_obj
-                            # Note: model_params_used now contains the scaler reference
 
-
-                        # Store results, ensuring consistent columns
+                        # Store results
                         if model_forecast_df is None:
                              model_forecast_df = empty_forecast.copy()
                         future_forecast_results[model_name] = model_forecast_df.reindex(columns=['yhat', 'yhat_lower', 'yhat_upper'])
 
-
                     except Exception as e:
                         logger.error(f"Unexpected error running final forecast for {model_name}: {e}", exc_info=True)
-                        # Store NaN results if error occurs
                         future_forecast_results[model_name] = empty_forecast.copy()
                         if model_params_used is None: model_params_used = {'model_type': model_name, 'status': 'Failed'}
                         model_params_used['final_forecast_run_error'] = f"Main Loop Error: {e}"
 
                     runtime = time.time() - start_time
                     logger.info(f"--- {model_name} Final Forecast Finished. Runtime: {runtime:.2f} seconds ---")
-                    # Store final run parameters separately
                     if model_params_used:
                          model_params_used['final_forecast_runtime_seconds'] = runtime
                          all_run_parameters['final_forecast_runs'][model_name] = model_params_used
-
 
                 # --- Display Future Forecasts ---
                 logger.info("\n" + "="*20 + " Future Point Forecasts " + "="*20)
@@ -594,7 +584,6 @@ def run_comparison() -> None:
                 for model, results_df in future_forecast_results.items():
                      if isinstance(results_df, pd.DataFrame) and 'yhat' in results_df:
                          future_point_forecasts_df[model] = results_df['yhat']
-
                 try:
                     with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
                         logger.info(f"\n{future_point_forecasts_df}")
@@ -604,9 +593,9 @@ def run_comparison() -> None:
 
                 # --- Save Future Forecasts (Conditional) ---
                 if save_results_flag:
-                    logger.info(f"Attempting to save future forecasts to directory: '{results_dir}'")
+                    logger.info(f"Attempting to save future forecasts to directory: '{results_dir}'") # results_dir is timestamped
                     try:
-                        os.makedirs(results_dir, exist_ok=True)
+                        # os.makedirs(results_dir, exist_ok=True) # Main dir created earlier
 
                         # Save Future Point Forecasts
                         if not future_point_forecasts_df.empty:
@@ -623,29 +612,32 @@ def run_comparison() -> None:
 
                         # Optionally save models trained on full data
                         if config_params.get('SAVE_TRAINED_MODELS', False):
+                            # saved_final_models dir will be inside timestamped folder
                             final_models_dir = os.path.join(results_dir, 'saved_final_models')
-                            os.makedirs(final_models_dir, exist_ok=True)
+                            os.makedirs(final_models_dir, exist_ok=True) # Create subdir if needed
                             logger.info(f"Attempting to save final trained models (full data) to: {final_models_dir}")
                             models_saved_count = 0
                             for model_name, model_obj in fitted_final_models.items():
                                  if model_obj:
                                      try:
-                                         save_path = os.path.join(final_models_dir, f"model_{model_name}") # Extension added by save func
+                                         # Construct path inside timestamped/saved_final_models
+                                         save_path = os.path.join(final_models_dir, f"model_{model_name}")
                                          if model_name == 'SARIMA':
                                              sarima_model.save_sarima_model(model_obj, save_path + ".pkl")
                                          elif model_name == 'Prophet':
                                              prophet_model.save_prophet_model(model_obj, save_path + ".pkl")
                                          elif model_name in ['RNN', 'LSTM']:
-                                             nn_models.save_nn_model(model_obj, save_path)
-                                             # Retrieve scaler from the params dictionary stored during the final run
+                                             nn_models.save_nn_model(model_obj, save_path) # Adds extension
+                                             # Retrieve scaler from the params dictionary for the final run
                                              final_nn_params = all_run_parameters.get('final_forecast_runs', {}).get(model_name, {})
-                                             scaler_obj = final_nn_params.get('scaler_object_ref') # Retrieve the scaler reference
+                                             scaler_obj = final_nn_params.get('scaler_object_ref')
                                              if scaler_obj and isinstance(scaler_obj, MinMaxScaler):
+                                                 # Construct path inside timestamped/saved_final_models
                                                  scaler_path = os.path.join(final_models_dir, f"scaler_{model_name}.joblib")
                                                  joblib.dump(scaler_obj, scaler_path)
                                                  logger.info(f"Saved final NN scaler for {model_name} to {scaler_path}")
                                              else:
-                                                  logger.warning(f"Could not find or verify scaler object reference to save for final NN model {model_name}")
+                                                  logger.warning(f"Could not find/verify scaler object reference for final NN model {model_name}")
                                          else:
                                              logger.warning(f"Don't know how to save final model type: {model_name}")
                                              continue
@@ -654,40 +646,61 @@ def run_comparison() -> None:
                                          logger.error(f"Failed to save final model {model_name}: {save_model_err}", exc_info=True)
                             logger.info(f"Finished saving final models ({models_saved_count}/{len(fitted_final_models)} saved successfully).")
 
-
                     except Exception as e:
                         logger.error(f"Error during future results saving: {e}", exc_info=True)
-
-
-                # --- Plot Future Forecasts ---
-                logger.info("--- Plotting Future Forecasts ---")
-                try:
-                    # Ensure historical_df is the full dataset 'df'
-                    plotting.plot_future_forecasts(
-                        historical_df=full_train_df, # Pass the full historical data
-                        future_forecast_dict=future_forecast_results,
-                        config_params=config_params,
-                        main_title=f"Future Forecast ({forecast_horizon} Periods)"
-                    )
-                except ImportError:
-                     logger.error("Future plotting skipped: matplotlib or its dependencies not found.")
-                except Exception as e:
-                    logger.error(f"Could not generate future forecast plots. Error: {e}", exc_info=True)
-
-
     else:
-        logger.info("Skipping Final Forecasting step (RUN_FINAL_FORECAST=False in config or frequency error).")
+        logger.info("Skipping Final Forecasting step (RUN_FINAL_FORECAST=False or frequency error).")
+
+    # --- Stage 8: Generate Plots (Using New Structure) ---
+    logger.info("--- Stage 8: Generating Plots ---") # Changed log stage number for consistency
+
+    # Combine train and validation data for plotting evaluation history
+    plot_train_val_df = pd.concat([train_df, val_df]) if val_df is not None else train_df.copy()
+
+    # Prepare the full dataset (df) for future plot history
+    full_dataset_df = None
+    if df is not None:
+        full_dataset_df = df.copy()
+    else:
+        logger.warning("Original full dataframe 'df' not available for future plot history. Using train+val.")
+        full_dataset_df = plot_train_val_df # Use concatenated train/val as fallback
+
+    # Ensure evaluation_df is the DataFrame created in Stage 4
+    eval_metrics_df = evaluation_df # Already created above
+
+    try:
+        # Call the main orchestration function from plotting.py
+        # It receives the config_params with the updated RESULTS_DIR
+        plotting.generate_all_plots(
+            train_df=plot_train_val_df,         # History for eval plots (Train+Val)
+            test_df=test_df,                    # Actuals for eval plots
+            full_df=full_dataset_df,            # History for future plot (Full dataset)
+            eval_forecast_dict=forecast_results, # Forecasts matching test_df index
+            future_forecast_dict=future_forecast_results, # Forecasts for future
+            evaluation_metrics=eval_metrics_df, # DataFrame of metrics
+            config_params=config_params        # Configuration dictionary (with timestamped paths)
+        )
+    except ImportError:
+        logger.error("Plotting skipped: matplotlib or its dependencies not found. Install with 'pip install matplotlib'")
+    except Exception as e:
+        logger.error(f"Could not generate plots. Error: {e}", exc_info=True)
 
     # --- End of Workflow ---
     run_end_time = time.time()
     total_runtime = run_end_time - run_start_time
     logger.info(f"--- Forecasting Comparison Finished ---")
     logger.info(f"Total Run Time: {total_runtime:.2f} seconds")
-    # Save parameters again, now including final run info if applicable
+    # Log the final timestamped directory path
+    logger.info(f"Results for this run saved in: {config_params['RESULTS_DIR']}")
+
+
+    # Save parameters again, now including final run info and total runtime
+    # This will save to the run_parameters.json INSIDE the timestamped folder
     if config_params['SAVE_RESULTS'] and config_params.get('SAVE_MODEL_PARAMETERS', False):
          all_run_parameters['total_runtime_seconds'] = total_runtime
-         param_file = os.path.join(results_dir, "run_parameters.json")
-         save_run_parameters(all_run_parameters, param_file) # Save again with all info
+         # Ensure the most recent run parameters (including final runs) are saved
+         param_file = os.path.join(config_params['RESULTS_DIR'], "run_parameters.json") # Use updated path
+         save_run_parameters(all_run_parameters, param_file) # Save final version
 
 
 if __name__ == "__main__":
