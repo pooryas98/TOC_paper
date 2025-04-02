@@ -1,11 +1,11 @@
-joblib        # For saving/loading sklearn objects (like Scaler)
-keras-tuner   # For hyperparameter optimization of Keras models
-matplotlib    # For plotting results
-numpy         # For numerical operations
-pandas        # For data manipulation and time series handling
-pmdarima      # For auto_arima functionality in SARIMA
-prophet       # For the Prophet forecasting model (Install 'prophet', NOT 'fbprophet')
-python-dotenv # For loading configuration from .env file
-scikit-learn  # For MinMaxScaler and evaluation metrics
-statsmodels   # For SARIMAX model implementation
-tensorflow    # For RNN/LSTM models (Keras is part of TensorFlow >= 2.0)
+joblib
+keras-tuner
+matplotlib
+numpy
+pandas
+pmdarima
+prophet
+python-dotenv
+scikit-learn
+statsmodels
+tensorflow
