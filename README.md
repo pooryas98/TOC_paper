@@ -83,68 +83,67 @@ The framework is configured using environment variables, which can be convenient
 
 **Key Configuration Variables (.env):**
 
-```dotenv
-# --- Data ---
+--- Data ---
 CSV_FILE_PATH=TOC_Data_Iran_2003.csv # Path to your input CSV file (REQUIRED)
-DATE_COLUMN=Date                   # Name of the date/datetime column in the CSV (REQUIRED)
-VALUE_COLUMN=TOC over Iran         # Name of the value column to forecast (REQUIRED)
-TIME_SERIES_FREQUENCY=MS           # Optional: Pandas frequency string (e.g., 'D', 'W', 'MS'). If omitted, it tries to infer.
-DATA_IMPUTATION_METHOD=none        # Imputation for missing values ('none', 'ffill', 'bfill', 'mean', 'median', 'interpolate')
+DATE_COLUMN=Date # Name of the date/datetime column in the CSV (REQUIRED)
+VALUE_COLUMN=TOC over Iran # Name of the value column to forecast (REQUIRED)
+TIME_SERIES_FREQUENCY=MS # Optional: Pandas frequency string (e.g., 'D', 'W', 'MS'). If omitted, it tries to infer.
+DATA_IMPUTATION_METHOD=none # Imputation for missing values ('none', 'ffill', 'bfill', 'mean', 'median', 'interpolate')
 
-# --- Data Splitting ---
-TEST_SIZE=24                       # Number of periods for the test set
-VALIDATION_SIZE=12                 # Number of periods for the validation set (used by NNs, especially with KerasTuner)
+--- Data Splitting ---
+TEST_SIZE=24 # Number of periods for the test set
+VALIDATION_SIZE=12 # Number of periods for the validation set (used by NNs, especially with KerasTuner)
 
-# --- Models ---
+--- Models ---
 MODELS_TO_RUN=SARIMA,Prophet,RNN,LSTM # Comma-separated list of models to run
 
-# --- SARIMA Specific ---
-USE_AUTO_ARIMA=True                # Use pmdarima.auto_arima to find best order
-SARIMA_AUTO_SEASONAL=True          # Allow auto_arima to search for seasonal orders (requires m > 1)
-# SARIMA_P=1                       # Manual SARIMA order (p,d,q) - Used if USE_AUTO_ARIMA=False
-# SARIMA_D=1
-# SARIMA_Q=1
-# SARIMA_SP=1                      # Manual SARIMA seasonal order (P,D,Q,s) - Used if USE_AUTO_ARIMA=False
-# SARIMA_SD=1
-# SARIMA_SQ=0
-# SARIMA_MANUAL_S=12               # Manually specify seasonal period 's'. Overrides inferred frequency if set.
+--- SARIMA Specific ---
+USE_AUTO_ARIMA=True # Use pmdarima.auto_arima to find best order
+SARIMA_AUTO_SEASONAL=True # Allow auto_arima to search for seasonal orders (requires m > 1)
 
-# --- Prophet Specific ---
-# PROPHET_COUNTRY_HOLIDAYS=US      # Optional: Add country holidays (e.g., 'US', 'DE'). Requires 'holidays' package.
-PROPHET_INTERVAL_WIDTH=0.95        # Confidence interval width for Prophet forecasts
+SARIMA_P=1 # Manual SARIMA order (p,d,q) - Used if USE_AUTO_ARIMA=False
+SARIMA_D=1
+SARIMA_Q=1
+SARIMA_SP=1 # Manual SARIMA seasonal order (P,D,Q,s) - Used if USE_AUTO_ARIMA=False
+SARIMA_SD=1
+SARIMA_SQ=0
+SARIMA_MANUAL_S=12 # Manually specify seasonal period 's'. Overrides inferred frequency if set.
+--- Prophet Specific ---
+PROPHET_COUNTRY_HOLIDAYS=US # Optional: Add country holidays (e.g., 'US', 'DE'). Requires 'holidays' package.
+PROPHET_INTERVAL_WIDTH=0.95 # Confidence interval width for Prophet forecasts
 
-# --- NN (RNN/LSTM) Specific ---
-NN_STEPS=12                        # Number of time steps (lags) to use as input
-NN_UNITS=50                        # Number of units in RNN/LSTM layer (if not using KerasTuner)
-RNN_EPOCHS=150                     # Max epochs for RNN final training
-LSTM_EPOCHS=150                    # Max epochs for LSTM final training
-NN_EARLY_STOPPING_PATIENCE=15      # Patience for early stopping (0 to disable)
-USE_KERAS_TUNER=False              # Enable KerasTuner for NN hyperparameter search
-# NN_TUNER_MAX_TRIALS=10           # KerasTuner: Max optimization trials
-# NN_TUNER_EPOCHS=50               # KerasTuner: Epochs per trial
-# KERAS_TUNER_DIR=keras_tuner_dir  # Directory to store KerasTuner results
+--- NN (RNN/LSTM) Specific ---
+NN_STEPS=12 # Number of time steps (lags) to use as input
+NN_UNITS=50 # Number of units in RNN/LSTM layer (if not using KerasTuner)
+RNN_EPOCHS=150 # Max epochs for RNN final training
+LSTM_EPOCHS=150 # Max epochs for LSTM final training
+NN_EARLY_STOPPING_PATIENCE=15 # Patience for early stopping (0 to disable)
+USE_KERAS_TUNER=False # Enable KerasTuner for NN hyperparameter search
 
-# --- Evaluation & Results ---
-EVALUATION_METRICS=MAE,RMSE,MAPE   # Metrics to calculate (comma-separated)
-SAVE_RESULTS=True                  # Save evaluation results, forecasts, plots, etc.
-RESULTS_DIR=results                # Directory to save results
-SAVE_MODEL_PARAMETERS=True         # Save the run configuration and model parameters to a JSON file
-SAVE_TRAINED_MODELS=False          # Save the trained model objects (.pkl, .keras/.h5, .joblib)
-SAVE_PLOTS=True                    # Generate and save plots
-SHOW_PLOTS=False                   # Display plots interactively using matplotlib (blocks execution)
-PLOT_OUTPUT_FORMAT=png             # Format for saved plots (e.g., png, jpg, pdf)
+NN_TUNER_MAX_TRIALS=10 # KerasTuner: Max optimization trials
+NN_TUNER_EPOCHS=50 # KerasTuner: Epochs per trial
+KERAS_TUNER_DIR=keras_tuner_dir # Directory to store KerasTuner results
+--- Evaluation & Results ---
+EVALUATION_METRICS=MAE,RMSE,MAPE # Metrics to calculate (comma-separated)
+SAVE_RESULTS=True # Save evaluation results, forecasts, plots, etc.
+RESULTS_DIR=results # Directory to save results
+SAVE_MODEL_PARAMETERS=True # Save the run configuration and model parameters to a JSON file
+SAVE_TRAINED_MODELS=False # Save the trained model objects (.pkl, .keras/.h5, .joblib)
+SAVE_PLOTS=True # Generate and save plots
+SHOW_PLOTS=False # Display plots interactively using matplotlib (blocks execution)
+PLOT_OUTPUT_FORMAT=png # Format for saved plots (e.g., png, jpg, pdf)
 
-# --- Final Forecast ---
-RUN_FINAL_FORECAST=True            # Retrain models on full data and forecast future periods
-FORECAST_HORIZON=12                # Number of periods to forecast into the future
+--- Final Forecast ---
+RUN_FINAL_FORECAST=True # Retrain models on full data and forecast future periods
+FORECAST_HORIZON=12 # Number of periods to forecast into the future
 
-# --- General ---
-RANDOM_SEED=42                     # Seed for reproducibility
-LOG_LEVEL=INFO                     # Logging level (DEBUG, INFO, WARNING, ERROR)
-# LOG_FILE=logs/run_${TIMESTAMP}.log # Optional: Path to log file (supports ${TIMESTAMP})
-```dotenv
+--- General ---
+RANDOM_SEED=42 # Seed for reproducibility
+LOG_LEVEL=INFO # Logging level (DEBUG, INFO, WARNING, ERROR)
 
-Refer to src/config.py for the full list of configuration options and their default values.
+LOG_FILE=logs/run_${TIMESTAMP}.log # Optional: Path to log file (supports ${TIMESTAMP})
+
+Refer to `src/config.py` for the full list of configuration options and their default values.
 
 Usage
 
