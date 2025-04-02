@@ -157,12 +157,6 @@ Create and configure your .env file in the project root directory, pointing CSV_
 Run the main script from the project's root directory:
 
 python main.py
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 The script will:
 
@@ -207,24 +201,13 @@ Date,TOC over Iran
 2/1/2003 0:00,309.709167
 3/1/2003 0:00,313.327026
 ...
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Csv
-IGNORE_WHEN_COPYING_END
 
 Corresponding .env settings for this example:
 
 DATE_COLUMN=Date
 VALUE_COLUMN=TOC over Iran
 TIME_SERIES_FREQUENCY=MS # Monthly Start frequency
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Dotenv
-IGNORE_WHEN_COPYING_END
+
 Output
 
 If SAVE_RESULTS=True, the framework creates a timestamped subdirectory within the configured RESULTS_DIR (default: results/). This directory will contain:
@@ -268,12 +251,6 @@ Setup Env & Install:
 python -m venv venv
 source venv/bin/activate # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 Configure: Create a .env file in the root directory with at least:
 
@@ -287,22 +264,10 @@ SAVE_RESULTS=True
 SAVE_PLOTS=True
 SHOW_PLOTS=False
 RUN_FINAL_FORECAST=False # Disable final forecast for quicker first run
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Dotenv
-IGNORE_WHEN_COPYING_END
 
 Run:
 
 python main.py
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 Check Results: Examine the console output and the contents of the newly created results/<timestamp>/ directory.
 
@@ -315,34 +280,16 @@ Fork the repository on GitHub.
 Create a new branch for your feature or bug fix:
 
 git checkout -b feature/your-amazing-feature
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 Make your changes. Follow the existing code style and structure. Add comments where necessary.
 
 Commit your changes:
 
 git commit -m "Add some amazing feature"
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 Push to your branch:
 
 git push origin feature/your-amazing-feature
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-Bash
-IGNORE_WHEN_COPYING_END
 
 Open a Pull Request against the main repository branch.
 
