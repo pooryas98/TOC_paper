@@ -184,45 +184,43 @@ This project includes sample data (`TOC_Data_Iran_2003.csv`). To run a quick dem
     *   Potentially `future_point_forecasts.csv`, `future_full_forecast_*.csv` if `RUN_FINAL_FORECAST=True`.
     *   Potentially `saved_models/` and `saved_final_models/` if `SAVE_TRAINED_MODELS=True`.
 
-Okay, here is the rewritten "Project Structure" section:
 
 ## Project Structure
 
 The project is organized as follows:
 
-
 .
-├── .env # Local environment configuration file (Needs to be created)
-├── .gitignore # Specifies intentionally untracked files that Git should ignore
-├── main.py # Main entry point script to run the forecasting comparison
-├── requirements.txt # Lists Python package dependencies for installation
+├── .env                # Local environment configuration file (Needs to be created)
+├── .gitignore          # Specifies intentionally untracked files that Git should ignore
+├── main.py             # Main entry point script to run the forecasting comparison
+├── requirements.txt    # Lists Python package dependencies for installation
 ├── TOC_Data_Iran_2003.csv # Example time series data file
 │
-├── src/ # Source code directory
-│ ├── init.py
-│ ├── config.py # Handles loading configuration settings
-│ ├── data_loader.py # Functions for loading, cleaning, and splitting data
-│ ├── evaluation.py # Functions for calculating forecast evaluation metrics
-│ ├── plotting.py # Functions for generating forecast visualizations
-│ └── models/ # Directory containing different forecasting model implementations
-│ ├── init.py
-│ ├── nn_models.py # Implementation for RNN and LSTM models (using TensorFlow/Keras)
-│ ├── prophet_model.py # Implementation for the Prophet model
-│ └── sarima_model.py # Implementation for the SARIMA model (using statsmodels/pmdarima)
+├── src/                # Source code directory
+│   ├── __init__.py
+│   ├── config.py         # Handles loading configuration settings
+│   ├── data_loader.py    # Functions for loading, cleaning, and splitting data
+│   ├── evaluation.py     # Functions for calculating forecast evaluation metrics
+│   ├── plotting.py       # Functions for generating forecast visualizations
+│   └── models/           # Directory containing different forecasting model implementations
+│       ├── __init__.py
+│       ├── nn_models.py      # Implementation for RNN and LSTM models (using TensorFlow/Keras)
+│       ├── prophet_model.py  # Implementation for the Prophet model
+│       └── sarima_model.py   # Implementation for the SARIMA model (using statsmodels/pmdarima)
 │
-├── results/ # Default directory for output files (created during runtime)
-│ └── <run_timestamp>/ # Subdirectory for each specific run, named with a timestamp
-│ ├── evaluation_metrics.csv # CSV with performance metrics
-│ ├── point_forecasts.csv # CSV with test set point forecasts
-│ ├── run_parameters.json # JSON dump of run configuration and model parameters
-│ ├── plots/ # Directory containing generated plots (e.g., .png files)
-│ ├── saved_models/ # Optional: Saved models trained on the evaluation split
-│ ├── saved_final_models/ # Optional: Saved models trained on the full dataset
-│ ├── *.csv # Other CSV files (e.g., full forecasts, future forecasts)
-│ └── ...
+├── results/            # Default directory for output files (created during runtime)
+│   └── <run_timestamp>/  # Subdirectory for each specific run, named with a timestamp
+│       ├── evaluation_metrics.csv   # CSV with performance metrics
+│       ├── point_forecasts.csv      # CSV with test set point forecasts
+│       ├── run_parameters.json      # JSON dump of run configuration and model parameters
+│       ├── plots/                   # Directory containing generated plots (e.g., .png files)
+│       ├── saved_models/            # Optional: Saved models trained on the evaluation split
+│       ├── saved_final_models/      # Optional: Saved models trained on the full dataset
+│       ├── *.csv                    # Other CSV files (e.g., full forecasts, future forecasts)
+│       └── ...
 │
-└── keras_tuner_dir/ # Default directory for Keras Tuner trial results (created if tuner is used)
-└── ...
+└── keras_tuner_dir/    # Default directory for Keras Tuner trial results (created if tuner is used)
+    └── ...
 
 
 ## Output
