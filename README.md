@@ -146,7 +146,7 @@ LOG_LEVEL=INFO                     # Logging level (DEBUG, INFO, WARNING, ERROR)
 
 Refer to src/config.py for the full list of configuration options and their default values.
 
-Usage
+## Usage
 
 Ensure you have installed the necessary dependencies (see Installation).
 
