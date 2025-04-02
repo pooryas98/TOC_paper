@@ -113,56 +113,100 @@ SARIMA_AUTO_SEASONAL=True          # Allow auto_arima to search for seasonal ord
 # PROPHET_COUNTRY_HOLIDAYS=US      # Optional: Add country holidays (e.g., 'US', 'DE'). Requires 'holidays' package.
 PROPHET_INTERVAL_WIDTH=0.95        # Confidence interval width for Prophet forecasts
 
-# --- Neural Network (RNN/LSTM) Specific Settings ---
-NN_STEPS=12 # Input sequence length (window size) for NNs. Must be < VALIDATION_SIZE if using validation.
-# Manual NN Build Settings (used only if USE_KERAS_TUNER=False)
-NN_UNITS=50
-NN_ACTIVATION=relu # ('relu', 'tanh', etc.)
-NN_OPTIMIZER=adam  # ('adam', 'rmsprop', 'sgd', etc.)
-NN_ADD_DROPOUT=False
-NN_DROPOUT_RATE=0.2 # Only used if NN_ADD_DROPOUT=True.
-# General NN Training Settings
-NN_LOSS_FUNCTION=mean_squared_error # Keras loss function identifier
-NN_BATCH_SIZE=32
-RNN_EPOCHS=100 # Max epochs for RNN final training/manual run
-LSTM_EPOCHS=100 # Max epochs for LSTM final training/manual run
-NN_EARLY_STOPPING_PATIENCE=10 # Epochs to wait for improvement before stopping. 0 disables. Monitors val_loss (if val set exists) or loss.
-NN_VERBOSE=1 # Keras verbosity (0=silent, 1=progress bar, 2=one line per epoch)
+# --- NN (RNN/LSTM) Specific ---
+NN_STEPS=12                        # Number of time steps (lags) to use as input
+NN_UNITS=50                        # Number of units in RNN/LSTM layer (if not using KerasTuner)
+RNN_EPOCHS=150                     # Max epochs for RNN final training
+LSTM_EPOCHS=150                    # Max epochs for LSTM final training
+NN_EARLY_STOPPING_PATIENCE=15      # Patience for early stopping (0 to disable)
+USE_KERAS_TUNER=False              # Enable KerasTuner for NN hyperparameter search
+# NN_TUNER_MAX_TRIALS=10           # KerasTuner: Max optimization trials
+# NN_TUNER_EPOCHS=50               # KerasTuner: Epochs per trial
+# KERAS_TUNER_DIR=keras_tuner_dir  # Directory to store KerasTuner results
 
-# --- KerasTuner (NN Hyperparameter Optimization) Settings ---
-USE_KERAS_TUNER=True # Enable KerasTuner? Overrides manual NN settings above. Requires VALIDATION_SIZE > NN_STEPS.
-# Tuner Configuration (only used if USE_KERAS_TUNER=True)
-NN_TUNER_TYPE=RandomSearch # Tuner class: 'RandomSearch', 'Hyperband', 'BayesianOptimization'
-NN_TUNER_MAX_TRIALS=15 # Number of different hyperparameter combinations to try.
-NN_TUNER_EXECUTIONS_PER_TRIAL=1 # How many times to train each model configuration.
-NN_TUNER_EPOCHS=50 # Max epochs for *each tuner trial*. Can be less than final training epochs.
-NN_TUNER_OBJECTIVE=val_loss # Metric the tuner tries to minimize ('val_loss', 'loss', 'val_mae', 'mae', etc.). Must start with 'val_' if VALIDATION_SIZE > 0.
-KERAS_TUNER_DIR=keras_tuner_dir # Subdirectory name within results dir for tuner data.
-KERAS_TUNER_PROJECT_NAME_PREFIX=tuning_project # Project name prefix for tuner.
-KERAS_TUNER_OVERWRITE=True # Delete previous tuner results for the same project name?
-# Tuner Hyperparameter Search Space (defines ranges for the tuner)
-NN_TUNER_HP_UNITS_MIN=32; NN_TUNER_HP_UNITS_MAX=128; NN_TUNER_HP_UNITS_STEP=32
-NN_TUNER_HP_ACTIVATION_CHOICES=relu,tanh # Comma-separated Keras activation functions
-NN_TUNER_HP_USE_DROPOUT=True # Always include a Dropout layer? (Tuner will optimize the rate if True)
-NN_TUNER_HP_DROPOUT_MIN=0.1; NN_TUNER_HP_DROPOUT_MAX=0.4; NN_TUNER_HP_DROPOUT_STEP=0.1
-NN_TUNER_HP_LR_MIN=1e-4; NN_TUNER_HP_LR_MAX=1e-2 # Learning rate range (log scale)
-NN_TUNER_HP_OPTIMIZER_CHOICES=adam,rmsprop # Comma-separated Keras optimizer names
+# --- Evaluation & Results ---
+EVALUATION_METRICS=MAE,RMSE,MAPE   # Metrics to calculate (comma-separated)
+SAVE_RESULTS=True                  # Save evaluation results, forecasts, plots, etc.
+RESULTS_DIR=results                # Directory to save results
+SAVE_MODEL_PARAMETERS=True         # Save the run configuration and model parameters to a JSON file
+SAVE_TRAINED_MODELS=False          # Save the trained model objects (.pkl, .keras/.h5, .joblib)
+SAVE_PLOTS=True                    # Generate and save plots
+SHOW_PLOTS=False                   # Display plots interactively using matplotlib (blocks execution)
+PLOT_OUTPUT_FORMAT=png             # Format for saved plots (e.g., png, jpg, pdf)
 
-# --- Evaluation Settings ---
-EVALUATION_METRICS=MAE,RMSE,MAPE # Comma-separated metrics to calculate: 'MAE', 'RMSE', 'MAPE'.
+# --- Final Forecast ---
+RUN_FINAL_FORECAST=True            # Retrain models on full data and forecast future periods
+FORECAST_HORIZON=12                # Number of periods to forecast into the future
 
-# --- Output & Saving Settings ---
-SAVE_RESULTS=True # Master switch to save any output files (metrics, forecasts, params).
-RESULTS_DIR=results # Base directory where timestamped run folders will be created.
-SAVE_MODEL_PARAMETERS=True # Save the detailed run_parameters.json file?
-SAVE_TRAINED_MODELS=False # Save the actual trained model objects? Can consume significant disk space.
-SAVE_PLOTS=True # Save the generated plots?
-PLOT_OUTPUT_FORMAT=png # Format for saved plots ('png', 'pdf', 'svg', 'jpg').
-SHOW_PLOTS=False # Display plots interactively after generation? (Requires a GUI environment).
+# --- General ---
+RANDOM_SEED=42                     # Seed for reproducibility
+LOG_LEVEL=INFO                     # Logging level (DEBUG, INFO, WARNING, ERROR)
+# LOG_FILE=logs/run_${TIMESTAMP}.log # Optional: Path to log file (supports ${TIMESTAMP})
 
-# --- Final Forecasting (After Evaluation) ---
-RUN_FINAL_FORECAST=True # Retrain models specified in MODELS_TO_RUN on full data and forecast future?
-FORECAST_HORIZON=12     # Number of periods to forecast into the future (> 0).
+
+Refer to src/config.py for the full list of configuration options and their default values.
+
+Usage
+
+Ensure you have installed the necessary dependencies (see Installation).
+
+Prepare your input data CSV file (see Input Data Format).
+
+Create and configure your .env file in the project root directory, pointing CSV_FILE_PATH, DATE_COLUMN, and VALUE_COLUMN to your data. Customize other settings as needed.
+
+Run the main script from the project's root directory:
+
+python main.py
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+The script will:
+
+Load configuration from .env or environment variables.
+
+Load and prepare the specified time series data.
+
+Split the data into training, validation (if VALIDATION_SIZE > 0), and test sets.
+
+Train the models specified in MODELS_TO_RUN on the training (and potentially validation) data.
+
+If USE_KERAS_TUNER=True, it will perform hyperparameter search for NN models before final training.
+
+Generate forecasts for the test period for each trained model.
+
+Evaluate the forecasts using the specified metrics.
+
+Print the evaluation results to the console.
+
+If RUN_FINAL_FORECAST=True, retrain models on the full dataset and generate forecasts for the FORECAST_HORIZON.
+
+Print the future forecasts to the console.
+
+Save results (metrics, forecasts, parameters, plots, models) to the RESULTS_DIR/<timestamp>/ directory if enabled in the configuration.
+
+Generate and save/show plots if enabled.
+
+Input Data Format
+
+The framework expects input data as a CSV file with at least two columns:
+
+Date/Time Column: A column containing dates or timestamps that can be parsed by pandas.to_datetime. Specify the name of this column in the DATE_COLUMN configuration variable.
+
+Value Column: A column containing the numerical time series values to be forecasted. Specify the name of this column in the VALUE_COLUMN configuration variable.
+
+The script will use the date/time column as the index. Ensure the data is sorted chronologically if it isn't already in the CSV.
+
+Example CSV (TOC_Data_Iran_2003.csv):
+
+Date,TOC over Iran
+1/1/2003 0:00,304.629822
+2/1/2003 0:00,309.709167
+3/1/2003 0:00,313.327026
+...
 IGNORE_WHEN_COPYING_START
 content_copy
 download
@@ -264,33 +308,52 @@ Check Results: Examine the console output and the contents of the newly created 
 
 Contributing
 
-Contributions are welcome! Feel free to fork the repository, submit issues, or create pull requests.
+Contributions are welcome! Please follow these steps:
 
-License
+Fork the repository on GitHub.
 
-[Specify Your License Here - e.g., MIT License]
+Create a new branch for your feature or bug fix:
 
-See the LICENSE file for details. (You should create a LICENSE file if you don't have one).
-
-Potential Future Enhancements
-
-Support for exogenous variables (regressors) in models that allow them (SARIMAX, Prophet, NNs).
-
-Implementation of additional forecasting models (e.g., ETS, TBATS, N-BEATS).
-
-Multivariate time series forecasting capabilities.
-
-More advanced diagnostic plots (ACF/PACF of residuals, etc.).
-
-Integration with experiment tracking platforms (e.g., MLflow).
-
-Dockerization for easier deployment.
-
-A simple web UI (e.g., using Streamlit or Flask) for interacting with the framework.
-
+git checkout -b feature/your-amazing-feature
 IGNORE_WHEN_COPYING_START
 content_copy
 download
 Use code with caution.
 Bash
 IGNORE_WHEN_COPYING_END
+
+Make your changes. Follow the existing code style and structure. Add comments where necessary.
+
+Commit your changes:
+
+git commit -m "Add some amazing feature"
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Push to your branch:
+
+git push origin feature/your-amazing-feature
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Open a Pull Request against the main repository branch.
+
+Please ensure your code is well-documented. While there isn't a formal test suite in the provided code, contributions that include tests for new functionality are highly encouraged. Be mindful of the files listed in .gitignore.
+
+License
+
+No LICENSE file was found in the repository. Please contact the project maintainers for information regarding licensing and usage terms.
+
+Support
+
+For issues, bug reports, or feature requests, please use the GitHub Issues tab of the repository.
+
+The primary documentation is this README.md file. Refer to the code comments and docstrings within the src/ directory for more specific implementation details.
