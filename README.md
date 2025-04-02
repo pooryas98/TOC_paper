@@ -142,7 +142,7 @@ FORECAST_HORIZON=12                # Number of periods to forecast into the futu
 RANDOM_SEED=42                     # Seed for reproducibility
 LOG_LEVEL=INFO                     # Logging level (DEBUG, INFO, WARNING, ERROR)
 # LOG_FILE=logs/run_${TIMESTAMP}.log # Optional: Path to log file (supports ${TIMESTAMP})
-
+```dotenv
 
 Refer to src/config.py for the full list of configuration options and their default values.
 
