@@ -1,256 +1,160 @@
-# Time Series Forecasting Framework
+# Time Series Forecasting Model Comparison Framework
 
-A flexible and configurable Python framework for comparing multiple time series forecasting models (SARIMA, Prophet, RNN, LSTM) on user-provided data. Features include data loading, preprocessing, imputation, automatic hyperparameter tuning (for SARIMA and NNs), detailed evaluation, result saving, and plotting capabilities.
+A Python framework designed to load time series data, run multiple forecasting models (SARIMA, Prophet, RNN, LSTM), evaluate their performance, and generate comparative results and plots.
 
-This codebase has been optimized for reduced size while maintaining full functionality.
+## Table of Contents
+
+- [Features](#features)
+- [Technologies Used](#technologies-used)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Input Data Format](#input-data-format)
+- [Output](#output)
+- [Getting Started (Quick Start)](#getting-started-quick-start)
+- [Contributing](#contributing)
+- [License](#license)
+- [Support](#support)
 
 ## Features
 
-*   **Multiple Models:** Compare forecasts from:
-    *   SARIMA (with optional automatic order selection via `pmdarima`)
-    *   Prophet (handles holidays, seasonality modes)
-    *   SimpleRNN
-    *   LSTM
-*   **Data Handling:**
-    *   Load time series data from CSV files.
-    *   Configurable date and value columns.
-    *   Optional data imputation methods (ffill, bfill, mean, median, interpolate).
-    *   Automatic frequency inference or manual specification.
-*   **Hyperparameter Tuning:**
-    *   Optional `auto_arima` for SARIMA order selection.
-    *   Optional KerasTuner integration (`RandomSearch`, `Hyperband`, `BayesianOptimization`) for RNN/LSTM hyperparameter optimization (units, activation, dropout, learning rate, optimizer).
-*   **Evaluation:**
-    *   Splits data into Train, Validation (optional), and Test sets.
-    *   Calculates standard metrics (MAE, RMSE, MAPE) on the test set.
-*   **Visualization:**
-    *   Generates plots comparing model forecasts against actuals.
-    *   Individual model performance plots.
-    *   Pairwise model comparison plots.
-    *   Residual comparison plots.
-    *   Future forecast plots combining historical data and predictions.
-*   **Persistence:**
-    *   Saves evaluation metrics, forecasts (point and full with CIs), and run parameters to a timestamped directory.
-    *   Optionally saves trained model objects (`.pkl`, `.keras`, `.joblib` for scalers).
-    *   Optionally saves generated plots.
-*   **Configuration:** Highly configurable run behavior via a `.env` file.
-*   **Final Forecasting:** Optionally retrains selected models on the full dataset to generate forecasts for a specified future horizon.
+*   **Data Handling:** Loads time series data from CSV files, handles date parsing, and offers optional imputation methods (ffill, bfill, mean, median, interpolate).
+*   **Train/Validation/Test Splitting:** Splits data chronologically for model training, validation (optional), and testing.
+*   **Multiple Model Implementations:** Includes implementations for:
+    *   **SARIMA:** Supports both manual order specification and automatic order selection using `pmdarima` (auto\_arima).
+    *   **Prophet:** Leverages Facebook's Prophet library, including options for growth models (linear/logistic), seasonality modes, and optional holiday integration (requires `holidays` package).
+    *   **Recurrent Neural Networks (RNN & LSTM):** Implements SimpleRNN and LSTM models using TensorFlow/Keras. Includes data scaling (MinMaxScaler) and sequence generation.
+*   **Hyperparameter Tuning:** Optional hyperparameter tuning for NN models (RNN/LSTM) using KerasTuner (RandomSearch, Hyperband, BayesianOptimization supported).
+*   **Evaluation:** Compares model forecasts against the test set using configurable metrics (MAE, RMSE, MAPE).
+*   **Visualization:** Generates plots using Matplotlib:
+    *   Individual model forecasts vs actuals.
+    *   Pairwise model forecast comparisons.
+    *   Residual analysis plots.
+    *   Combined future forecast plots.
+*   **Future Forecasting:** Optionally retrains models on the full dataset and generates forecasts for a specified future horizon.
+*   **Results Saving:** Saves evaluation metrics, point forecasts, full forecasts (including confidence intervals where applicable), run parameters, and trained models/scalers to a timestamped results directory.
+*   **Configuration:** Highly configurable via environment variables or a `.env` file.
 
-## Project Structure
+## Technologies Used
 
-
-.
-├── .env # Local configuration (REQUIRED, create from example) - GITIGNORED
-├── .gitignore # Files ignored by git
-├── main.py # Main script to run the forecasting workflow
-├── requirements.txt # Python dependencies
-├── README.md # This file
-│
-└── src/ # Source code directory
-├── init.py
-├── config.py # Loads configuration from .env
-├── data_loader.py # Data loading, cleaning, imputation, splitting
-├── evaluation.py # Forecast evaluation metric calculations
-├── plotting.py # Plot generation functions
-│
-└── models/ # Model-specific implementation files
-├── init.py
-├── nn_models.py # RNN and LSTM implementation (manual & KerasTuner)
-├── prophet_model.py # Prophet implementation
-└── sarima_model.py # SARIMA implementation (manual & auto_arima)
-
---- Generated during runtime ---
-results/
-└── <YYYYMMDD_HHMMSS>/ # Timestamped directory for each run
-├── run_parameters.json
-├── evaluation_metrics.csv
-├── point_forecasts.csv
-├── full_forecast_*.csv
-├── future_point_forecasts.csv (if RUN_FINAL_FORECAST=True)
-├── future_full_forecast_*.csv (if RUN_FINAL_FORECAST=True)
-├── plots/ # Contains generated plots (if SAVE_PLOTS=True)
-│ └── *.png | *.pdf | ...
-├── saved_models/ # Contains saved evaluation models (if SAVE_TRAINED_MODELS=True)
-│ └── model_.pkl | .keras | .h5 | scaler_.joblib
-├── saved_final_models/# Contains saved final models (if SAVE_TRAINED_MODELS=True & RUN_FINAL_FORECAST=True)
-│ └── model_.pkl | .keras | .h5 | scaler_.joblib
-└── keras_tuner_dir/ # Contains KerasTuner trial data (if USE_KERAS_TUNER=True)
-## Prerequisites
-
-*   Python (>= 3.8 recommended)
-*   `pip` (Python package installer)
-*   Potentially system libraries required for building dependencies like `Prophet` or `TensorFlow` (refer to their respective installation guides if issues arise).
+*   **Programming Language:** Python 3
+*   **Core Libraries:**
+    *   Pandas: Data manipulation and time series handling.
+    *   NumPy: Numerical operations.
+*   **Forecasting Models:**
+    *   Statsmodels: SARIMA implementation.
+    *   Pmdarima: Automatic ARIMA order selection.
+    *   Prophet (fbprophet): Prophet model implementation.
+    *   TensorFlow / Keras: RNN and LSTM model implementation.
+*   **Machine Learning Utilities:**
+    *   Scikit-learn: Data scaling (MinMaxScaler) and evaluation metrics.
+    *   KerasTuner: Hyperparameter tuning for Keras models.
+    *   Joblib: Saving/loading Scikit-learn objects (like scalers).
+*   **Plotting:** Matplotlib
+*   **Configuration:** python-dotenv
+*   **Optional:**
+    *   holidays: For adding country-specific holidays to Prophet.
 
 ## Installation
 
-1.  **Clone the repository:**
+1.  **Clone the Repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone <repository-url>
     cd <repository-directory>
     ```
 
-2.  **Create and activate a virtual environment (Recommended):**
+2.  **Create a Virtual Environment (Recommended):**
     ```bash
-    # Using venv (built-in)
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
-
-    # Or using conda
-    # conda create -n forecastenv python=3.9
-    # conda activate forecastenv
+    python -m venv venv
+    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
     ```
 
-3.  **Install dependencies:**
+3.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
+    *Note: Depending on your system, installing `prophet` and `tensorflow` might require specific steps or dependencies. Refer to their official documentation if you encounter issues.*
 
-## Configuration (`.env` File)
+4.  **Set up Configuration:** Create a `.env` file in the project's root directory (see [Configuration](#configuration) section below).
 
-The entire workflow is configured using a `.env` file in the project root directory.
+## Configuration
 
-1.  **Create the `.env` file:** Copy the example `.env` content provided below (or if one is included in the repo, copy `example.env` to `.env`).
-2.  **Edit the `.env` file** to match your dataset, desired models, and preferences.
+The framework is configured using environment variables, which can be conveniently managed using a `.env` file in the project root directory. Copy or create a `.env` file and set the required variables.
 
-**Example `.env` content (refer to this structure):**
+**Key Configuration Variables (.env):**
 
 ```dotenv
-# --- Logging ---
-# Levels: DEBUG, INFO, WARNING, ERROR, CRITICAL. Empty LOG_FILE logs to console only.
-LOG_LEVEL=INFO
-LOG_FILE=results/forecasting_run_${TIMESTAMP}.log # Use ${TIMESTAMP} for automatic timestamp
-
-# --- Data Source (REQUIRED) ---
-CSV_FILE_PATH=your_data.csv # IMPORTANT: Path to your CSV data file
-DATE_COLUMN=DateColumnName  # IMPORTANT: Name of the date/datetime column in your CSV
-VALUE_COLUMN=ValueColumnName # IMPORTANT: Name of the target value column in your CSV
-
-# --- Time Series Properties ---
-TIME_SERIES_FREQUENCY=MS  # Pandas frequency string ('MS', 'D', 'W', 'H', etc.). Empty ('') attempts inference.
-DATA_IMPUTATION_METHOD=ffill # 'none', 'ffill', 'bfill', 'mean', 'median', 'interpolate'. 'none' requires data with no NaNs.
+# --- Data ---
+CSV_FILE_PATH=TOC_Data_Iran_2003.csv # Path to your input CSV file (REQUIRED)
+DATE_COLUMN=Date                   # Name of the date/datetime column in the CSV (REQUIRED)
+VALUE_COLUMN=TOC over Iran         # Name of the value column to forecast (REQUIRED)
+TIME_SERIES_FREQUENCY=MS           # Optional: Pandas frequency string (e.g., 'D', 'W', 'MS'). If omitted, it tries to infer.
+DATA_IMPUTATION_METHOD=none        # Imputation for missing values ('none', 'ffill', 'bfill', 'mean', 'median', 'interpolate')
 
 # --- Data Splitting ---
-TEST_SIZE=24          # Number of periods for the final evaluation set (> 0).
-VALIDATION_SIZE=12    # Number of periods for validation set (>= 0). Needed for KerasTuner & NN early stopping. Must be > NN_STEPS if used.
+TEST_SIZE=24                       # Number of periods for the test set
+VALIDATION_SIZE=12                 # Number of periods for the validation set (used by NNs, especially with KerasTuner)
 
-# --- General Settings ---
-RANDOM_SEED=42
-MODELS_TO_RUN=SARIMA,Prophet,LSTM # Comma-separated list of models to run: SARIMA, Prophet, RNN, LSTM
+# --- Models ---
+MODELS_TO_RUN=SARIMA,Prophet,RNN,LSTM # Comma-separated list of models to run
 
-# --- SARIMA Specific Settings ---
-USE_AUTO_ARIMA=True # True uses pmdarima.auto_arima to find orders, False uses manual SARIMA_ orders below.
-SARIMA_AUTO_SEASONAL=True # If USE_AUTO_ARIMA=True, should it search for seasonal components (P,D,Q)?
-# Auto-ARIMA Search Parameters (only used if USE_AUTO_ARIMA=True)
-AUTO_ARIMA_START_P=0; AUTO_ARIMA_MAX_P=5
-AUTO_ARIMA_START_Q=0; AUTO_ARIMA_MAX_Q=5
-AUTO_ARIMA_MAX_D=2
-AUTO_ARIMA_START_SP=0; AUTO_ARIMA_MAX_SP=2
-AUTO_ARIMA_START_SQ=0; AUTO_ARIMA_MAX_SQ=2
-AUTO_ARIMA_MAX_SD=1
-AUTO_ARIMA_TEST=adf     # ('adf', 'kpss', 'pp')
-AUTO_ARIMA_IC=aic       # ('aic', 'bic', 'hqic', 'oob')
-AUTO_ARIMA_STEPWISE=True
-# Manual SARIMA Orders (only used if USE_AUTO_ARIMA=False)
-SARIMA_P=1; SARIMA_D=1; SARIMA_Q=1
-SARIMA_SP=1; SARIMA_SD=1; SARIMA_SQ=0
-SARIMA_MANUAL_S=         # Optional: Manually set seasonal period 's' (e.g., 12). Overrides inferred frequency if > 1.
-# SARIMA Model Enforcement
-SARIMA_ENFORCE_STATIONARITY=False
-SARIMA_ENFORCE_INVERTIBILITY=False
+# --- SARIMA Specific ---
+USE_AUTO_ARIMA=True                # Use pmdarima.auto_arima to find best order
+SARIMA_AUTO_SEASONAL=True          # Allow auto_arima to search for seasonal orders (requires m > 1)
+# SARIMA_P=1                       # Manual SARIMA order (p,d,q) - Used if USE_AUTO_ARIMA=False
+# SARIMA_D=1
+# SARIMA_Q=1
+# SARIMA_SP=1                      # Manual SARIMA seasonal order (P,D,Q,s) - Used if USE_AUTO_ARIMA=False
+# SARIMA_SD=1
+# SARIMA_SQ=0
+# SARIMA_MANUAL_S=12               # Manually specify seasonal period 's'. Overrides inferred frequency if set.
 
-# --- Prophet Specific Settings ---
-PROPHET_GROWTH=linear    # 'linear' or 'logistic'. 'logistic' requires PROPHET_CAP.
-# PROPHET_CAP=1000       # Required capacity if PROPHET_GROWTH=logistic.
-# PROPHET_FLOOR=0        # Optional floor if PROPHET_GROWTH=logistic.
-PROPHET_ADD_YEARLY_SEASONALITY=auto # 'auto', True, False
-PROPHET_ADD_WEEKLY_SEASONALITY=auto # 'auto', True, False
-PROPHET_ADD_DAILY_SEASONALITY=auto # 'auto', True, False
-PROPHET_SEASONALITY_MODE=additive  # 'additive' or 'multiplicative'
-PROPHET_INTERVAL_WIDTH=0.95        # Confidence interval width (e.g., 0.95 for 95%)
-PROPHET_COUNTRY_HOLIDAYS= # Optional: Country code for holidays (e.g., 'US', 'DE'). Requires 'holidays' library.
+# --- Prophet Specific ---
+# PROPHET_COUNTRY_HOLIDAYS=US      # Optional: Add country holidays (e.g., 'US', 'DE'). Requires 'holidays' package.
+PROPHET_INTERVAL_WIDTH=0.95        # Confidence interval width for Prophet forecasts
 
-# --- Neural Network (RNN/LSTM) Specific Settings ---
-NN_STEPS=12 # Input sequence length (window size) for NNs. Must be < VALIDATION_SIZE if using validation.
-# Manual NN Build Settings (used only if USE_KERAS_TUNER=False)
-NN_UNITS=50
-NN_ACTIVATION=relu # ('relu', 'tanh', etc.)
-NN_OPTIMIZER=adam  # ('adam', 'rmsprop', 'sgd', etc.)
-NN_ADD_DROPOUT=False
-NN_DROPOUT_RATE=0.2 # Only used if NN_ADD_DROPOUT=True.
-# General NN Training Settings
-NN_LOSS_FUNCTION=mean_squared_error # Keras loss function identifier
-NN_BATCH_SIZE=32
-RNN_EPOCHS=100 # Max epochs for RNN final training/manual run
-LSTM_EPOCHS=100 # Max epochs for LSTM final training/manual run
-NN_EARLY_STOPPING_PATIENCE=10 # Epochs to wait for improvement before stopping. 0 disables. Monitors val_loss (if val set exists) or loss.
-NN_VERBOSE=1 # Keras verbosity (0=silent, 1=progress bar, 2=one line per epoch)
+# --- NN (RNN/LSTM) Specific ---
+NN_STEPS=12                        # Number of time steps (lags) to use as input
+NN_UNITS=50                        # Number of units in RNN/LSTM layer (if not using KerasTuner)
+RNN_EPOCHS=150                     # Max epochs for RNN final training
+LSTM_EPOCHS=150                    # Max epochs for LSTM final training
+NN_EARLY_STOPPING_PATIENCE=15      # Patience for early stopping (0 to disable)
+USE_KERAS_TUNER=False              # Enable KerasTuner for NN hyperparameter search
+# NN_TUNER_MAX_TRIALS=10           # KerasTuner: Max optimization trials
+# NN_TUNER_EPOCHS=50               # KerasTuner: Epochs per trial
+# KERAS_TUNER_DIR=keras_tuner_dir  # Directory to store KerasTuner results
 
-# --- KerasTuner (NN Hyperparameter Optimization) Settings ---
-USE_KERAS_TUNER=True # Enable KerasTuner? Overrides manual NN settings above. Requires VALIDATION_SIZE > NN_STEPS.
-# Tuner Configuration (only used if USE_KERAS_TUNER=True)
-NN_TUNER_TYPE=RandomSearch # Tuner class: 'RandomSearch', 'Hyperband', 'BayesianOptimization'
-NN_TUNER_MAX_TRIALS=15 # Number of different hyperparameter combinations to try.
-NN_TUNER_EXECUTIONS_PER_TRIAL=1 # How many times to train each model configuration.
-NN_TUNER_EPOCHS=50 # Max epochs for *each tuner trial*. Can be less than final training epochs.
-NN_TUNER_OBJECTIVE=val_loss # Metric the tuner tries to minimize ('val_loss', 'loss', 'val_mae', 'mae', etc.). Must start with 'val_' if VALIDATION_SIZE > 0.
-KERAS_TUNER_DIR=keras_tuner_dir # Subdirectory name within results dir for tuner data.
-KERAS_TUNER_PROJECT_NAME_PREFIX=tuning_project # Project name prefix for tuner.
-KERAS_TUNER_OVERWRITE=True # Delete previous tuner results for the same project name?
-# Tuner Hyperparameter Search Space (defines ranges for the tuner)
-NN_TUNER_HP_UNITS_MIN=32; NN_TUNER_HP_UNITS_MAX=128; NN_TUNER_HP_UNITS_STEP=32
-NN_TUNER_HP_ACTIVATION_CHOICES=relu,tanh # Comma-separated Keras activation functions
-NN_TUNER_HP_USE_DROPOUT=True # Always include a Dropout layer? (Tuner will optimize the rate if True)
-NN_TUNER_HP_DROPOUT_MIN=0.1; NN_TUNER_HP_DROPOUT_MAX=0.4; NN_TUNER_HP_DROPOUT_STEP=0.1
-NN_TUNER_HP_LR_MIN=1e-4; NN_TUNER_HP_LR_MAX=1e-2 # Learning rate range (log scale)
-NN_TUNER_HP_OPTIMIZER_CHOICES=adam,rmsprop # Comma-separated Keras optimizer names
+# --- Evaluation & Results ---
+EVALUATION_METRICS=MAE,RMSE,MAPE   # Metrics to calculate (comma-separated)
+SAVE_RESULTS=True                  # Save evaluation results, forecasts, plots, etc.
+RESULTS_DIR=results                # Directory to save results
+SAVE_MODEL_PARAMETERS=True         # Save the run configuration and model parameters to a JSON file
+SAVE_TRAINED_MODELS=False          # Save the trained model objects (.pkl, .keras/.h5, .joblib)
+SAVE_PLOTS=True                    # Generate and save plots
+SHOW_PLOTS=False                   # Display plots interactively using matplotlib (blocks execution)
+PLOT_OUTPUT_FORMAT=png             # Format for saved plots (e.g., png, jpg, pdf)
 
-# --- Evaluation Settings ---
-EVALUATION_METRICS=MAE,RMSE,MAPE # Comma-separated metrics to calculate: 'MAE', 'RMSE', 'MAPE'.
+# --- Final Forecast ---
+RUN_FINAL_FORECAST=True            # Retrain models on full data and forecast future periods
+FORECAST_HORIZON=12                # Number of periods to forecast into the future
 
-# --- Output & Saving Settings ---
-SAVE_RESULTS=True # Master switch to save any output files (metrics, forecasts, params).
-RESULTS_DIR=results # Base directory where timestamped run folders will be created.
-SAVE_MODEL_PARAMETERS=True # Save the detailed run_parameters.json file?
-SAVE_TRAINED_MODELS=False # Save the actual trained model objects? Can consume significant disk space.
-SAVE_PLOTS=True # Save the generated plots?
-PLOT_OUTPUT_FORMAT=png # Format for saved plots ('png', 'pdf', 'svg', 'jpg').
-SHOW_PLOTS=False # Display plots interactively after generation? (Requires a GUI environment).
+# --- General ---
+RANDOM_SEED=42                     # Seed for reproducibility
+LOG_LEVEL=INFO                     # Logging level (DEBUG, INFO, WARNING, ERROR)
+# LOG_FILE=logs/run_${TIMESTAMP}.log # Optional: Path to log file (supports ${TIMESTAMP})
 
-# --- Final Forecasting (After Evaluation) ---
-RUN_FINAL_FORECAST=True # Retrain models specified in MODELS_TO_RUN on full data and forecast future?
-FORECAST_HORIZON=12     # Number of periods to forecast into the future (> 0).
-IGNORE_WHEN_COPYING_START
-content_copy
-download
-Use code with caution.
-IGNORE_WHEN_COPYING_END
 
-Key Configuration Variables:
-
-CSV_FILE_PATH: REQUIRED. Path to your input data file.
-
-DATE_COLUMN: REQUIRED. Name of the column containing dates/timestamps.
-
-VALUE_COLUMN: REQUIRED. Name of the column containing the time series values to forecast.
-
-MODELS_TO_RUN: Comma-separated list of models you want to include in the comparison.
-
-TEST_SIZE: Size of the hold-out set for final evaluation.
-
-VALIDATION_SIZE: Size of the validation set used for NN hyperparameter tuning and early stopping. Set to 0 if not using NNs or KerasTuner. Must be greater than NN_STEPS if USE_KERAS_TUNER=True or NN_EARLY_STOPPING_PATIENCE > 0 and NN_TUNER_OBJECTIVE uses validation data.
-
-USE_AUTO_ARIMA / USE_KERAS_TUNER: Switches to enable/disable automatic tuning for SARIMA / NNs.
-
-SAVE_RESULTS, SAVE_MODEL_PARAMETERS, SAVE_TRAINED_MODELS, SAVE_PLOTS: Control what output gets saved.
-
-RUN_FINAL_FORECAST / FORECAST_HORIZON: Control the final forecasting step.
+Refer to src/config.py for the full list of configuration options and their default values.
 
 Usage
 
-Ensure you have installed the prerequisites and dependencies (see Installation).
+Ensure you have installed the necessary dependencies (see Installation).
 
-Create and configure your .env file in the project root directory.
+Prepare your input data CSV file (see Input Data Format).
 
-Run the main script from the project root directory:
+Create and configure your .env file in the project root directory, pointing CSV_FILE_PATH, DATE_COLUMN, and VALUE_COLUMN to your data. Customize other settings as needed.
+
+Run the main script from the project's root directory:
 
 python main.py
 IGNORE_WHEN_COPYING_START
@@ -260,79 +164,199 @@ Use code with caution.
 Bash
 IGNORE_WHEN_COPYING_END
 
-The script will execute the following steps:
+The script will:
 
-Load configuration from .env.
+Load configuration from .env or environment variables.
 
-Set up logging (to console and optionally to file).
+Load and prepare the specified time series data.
 
-Load and prepare data (imputation, frequency setting, splitting).
+Split the data into training, validation (if VALIDATION_SIZE > 0), and test sets.
 
-Train and evaluate each model specified in MODELS_TO_RUN on the train/validation set, forecasting the test set period.
+Train the models specified in MODELS_TO_RUN on the training (and potentially validation) data.
 
-This includes optional hyperparameter tuning if enabled.
+If USE_KERAS_TUNER=True, it will perform hyperparameter search for NN models before final training.
 
-Calculate and display evaluation metrics on the test set.
+Generate forecasts for the test period for each trained model.
 
-Save evaluation results (metrics, forecasts, parameters, optionally models) to the timestamped results/ subdirectory.
+Evaluate the forecasts using the specified metrics.
 
-Optionally retrain models on the full dataset and generate forecasts for the future FORECAST_HORIZON.
+Print the evaluation results to the console.
 
-Save future forecasts (if generated).
+If RUN_FINAL_FORECAST=True, retrain models on the full dataset and generate forecasts for the FORECAST_HORIZON.
 
-Generate and save comparison plots (if enabled).
+Print the future forecasts to the console.
 
+Save results (metrics, forecasts, parameters, plots, models) to the RESULTS_DIR/<timestamp>/ directory if enabled in the configuration.
+
+Generate and save/show plots if enabled.
+
+Input Data Format
+
+The framework expects input data as a CSV file with at least two columns:
+
+Date/Time Column: A column containing dates or timestamps that can be parsed by pandas.to_datetime. Specify the name of this column in the DATE_COLUMN configuration variable.
+
+Value Column: A column containing the numerical time series values to be forecasted. Specify the name of this column in the VALUE_COLUMN configuration variable.
+
+The script will use the date/time column as the index. Ensure the data is sorted chronologically if it isn't already in the CSV.
+
+Example CSV (TOC_Data_Iran_2003.csv):
+
+Date,TOC over Iran
+1/1/2003 0:00,304.629822
+2/1/2003 0:00,309.709167
+3/1/2003 0:00,313.327026
+...
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Csv
+IGNORE_WHEN_COPYING_END
+
+Corresponding .env settings for this example:
+
+DATE_COLUMN=Date
+VALUE_COLUMN=TOC over Iran
+TIME_SERIES_FREQUENCY=MS # Monthly Start frequency
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Dotenv
+IGNORE_WHEN_COPYING_END
 Output
 
-Upon successful execution, a new subdirectory named with the run's timestamp (e.g., results/20231027_103000/) will be created within the RESULTS_DIR specified in .env. This directory will contain:
+If SAVE_RESULTS=True, the framework creates a timestamped subdirectory within the configured RESULTS_DIR (default: results/). This directory will contain:
 
-Log File: (If LOG_FILE is set) Contains detailed logs of the run.
+run_parameters.json: A JSON file detailing the configuration used for the run, data summary, model parameters found (including tuned hyperparameters), runtimes, and evaluation metrics (if SAVE_MODEL_PARAMETERS=True).
 
-run_parameters.json: (If SAVE_MODEL_PARAMETERS=True) A JSON file containing the configuration used for the run, data summary, model parameters (including tuned hyperparameters), runtimes, and evaluation metrics.
-
-evaluation_metrics.csv: A CSV file summarizing the performance metrics (MAE, RMSE, MAPE, Runtime) for each model on the test set.
+evaluation_metrics.csv: A CSV file summarizing the performance metrics (MAE, RMSE, MAPE, etc.) and runtime for each model on the test set.
 
 point_forecasts.csv: A CSV file containing the point forecasts (yhat) from each model for the test set period.
 
-full_forecast_<model_name>.csv: Separate CSV files for each model containing the full forecast output for the test set, potentially including confidence intervals (yhat, yhat_lower, yhat_upper).
+full_forecast_*.csv: Separate CSV files for each model containing the full forecast details for the test set, potentially including yhat, yhat_lower, and yhat_upper (confidence/prediction intervals).
 
-future_point_forecasts.csv: (If RUN_FINAL_FORECAST=True) Point forecasts for the future horizon.
+future_point_forecasts.csv: A CSV file with point forecasts for the future horizon (if RUN_FINAL_FORECAST=True).
 
-future_full_forecast_<model_name>.csv: (If RUN_FINAL_FORECAST=True) Full future forecasts for each model, potentially including confidence intervals.
+future_full_forecast_*.csv: Separate CSV files for each model's future forecast details (if RUN_FINAL_FORECAST=True).
 
-plots/ directory: (If SAVE_PLOTS=True) Contains generated plots in the format specified by PLOT_OUTPUT_FORMAT.
+plots/: A subdirectory containing generated plots (if SAVE_PLOTS=True).
 
-saved_models/ directory: (If SAVE_TRAINED_MODELS=True) Contains the saved model objects from the evaluation run.
+eval_indiv_*.png: Individual model forecast plots vs actuals.
 
-saved_final_models/ directory: (If SAVE_TRAINED_MODELS=True and RUN_FINAL_FORECAST=True) Contains the saved model objects retrained on the full dataset.
+eval_pair_*.png: Pairwise model comparison plots.
 
-keras_tuner_dir/ directory: (If USE_KERAS_TUNER=True) Contains data generated by KerasTuner during the hyperparameter search.
+eval_resid_comp.png: Comparison of residuals for all models.
+
+future_fcst_combined.png: Combined plot of future forecasts from all models.
+
+saved_models/: Subdirectory containing saved model objects from the evaluation run (if SAVE_TRAINED_MODELS=True). Includes model files (.pkl, .keras/.h5) and scalers (.joblib).
+
+saved_final_models/: Subdirectory containing saved model objects trained on the full dataset for future forecasting (if SAVE_TRAINED_MODELS=True and RUN_FINAL_FORECAST=True).
+
+keras_tuner_dir/: If USE_KERAS_TUNER=True, this directory (relative to the results directory) stores the detailed logs and checkpoints from the KerasTuner search process.
+
+Logs are printed to the console and optionally saved to a file specified by LOG_FILE.
+
+Getting Started (Quick Start)
+
+Clone: git clone <repository-url> && cd <repository-directory>
+
+Setup Env & Install:
+
+python -m venv venv
+source venv/bin/activate # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Configure: Create a .env file in the root directory with at least:
+
+CSV_FILE_PATH=TOC_Data_Iran_2003.csv # Use the sample data or your own
+DATE_COLUMN=Date
+VALUE_COLUMN=TOC over Iran
+MODELS_TO_RUN=SARIMA,Prophet # Run a subset for speed initially
+TEST_SIZE=12
+VALIDATION_SIZE=6
+SAVE_RESULTS=True
+SAVE_PLOTS=True
+SHOW_PLOTS=False
+RUN_FINAL_FORECAST=False # Disable final forecast for quicker first run
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Dotenv
+IGNORE_WHEN_COPYING_END
+
+Run:
+
+python main.py
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Check Results: Examine the console output and the contents of the newly created results/<timestamp>/ directory.
 
 Contributing
 
-Contributions are welcome! Feel free to fork the repository, submit issues, or create pull requests.
+Contributions are welcome! Please follow these steps:
+
+Fork the repository on GitHub.
+
+Create a new branch for your feature or bug fix:
+
+git checkout -b feature/your-amazing-feature
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Make your changes. Follow the existing code style and structure. Add comments where necessary.
+
+Commit your changes:
+
+git commit -m "Add some amazing feature"
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Push to your branch:
+
+git push origin feature/your-amazing-feature
+IGNORE_WHEN_COPYING_START
+content_copy
+download
+Use code with caution.
+Bash
+IGNORE_WHEN_COPYING_END
+
+Open a Pull Request against the main repository branch.
+
+Please ensure your code is well-documented. While there isn't a formal test suite in the provided code, contributions that include tests for new functionality are highly encouraged. Be mindful of the files listed in .gitignore.
 
 License
 
-[Specify Your License Here - e.g., MIT License]
+No LICENSE file was found in the repository. Please contact the project maintainers for information regarding licensing and usage terms.
 
-See the LICENSE file for details. (You should create a LICENSE file if you don't have one).
+Support
 
-Potential Future Enhancements
+For issues, bug reports, or feature requests, please use the GitHub Issues tab of the repository.
 
-Support for exogenous variables (regressors) in models that allow them (SARIMAX, Prophet, NNs).
-
-Implementation of additional forecasting models (e.g., ETS, TBATS, N-BEATS).
-
-Multivariate time series forecasting capabilities.
-
-More advanced diagnostic plots (ACF/PACF of residuals, etc.).
-
-Integration with experiment tracking platforms (e.g., MLflow).
-
-Dockerization for easier deployment.
-
-A simple web UI (e.g., using Streamlit or Flask) for interacting with the framework.
+The primary documentation is this README.md file. Refer to the code comments and docstrings within the src/ directory for more specific implementation details.
 
 IGNORE_WHEN_COPYING_START
 content_copy
