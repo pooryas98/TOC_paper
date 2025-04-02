@@ -189,6 +189,7 @@ This project includes sample data (`TOC_Data_Iran_2003.csv`). To run a quick dem
 
 The project is organized as follows:
 
+```text
 .
 ├── .env                # Local environment configuration file (Needs to be created)
 ├── .gitignore          # Specifies intentionally untracked files that Git should ignore
@@ -221,7 +222,7 @@ The project is organized as follows:
 │
 └── keras_tuner_dir/    # Default directory for Keras Tuner trial results (created if tuner is used)
     └── ...
-
+```
 
 ## Output
 
