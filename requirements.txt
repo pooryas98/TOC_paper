@@ -1,11 +1,11 @@
 joblib
 keras-tuner
 matplotlib
-numpy
+numpy~=1.26.4
 pandas
-pmdarima
+pmdarima==2.0.4       # <-- Require version known to support NumPy 2.x
 prophet
 python-dotenv
 scikit-learn
 statsmodels
-tensorflow
+tensorflow~=2.16.1
