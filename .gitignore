@@ -1,6 +1,9 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Virtual environments
 .venv/
 venv/
 env/
@@ -8,26 +11,45 @@ ENV/
 */env/
 */venv/
 */.venv/
+
+# Environment variables
 .env
+
+# IDE configuration files
 .vscode/
 .idea/
+
+# Visual Studio files
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+
+# Editor temporary files
 *.sw?
+
+# OS-generated files
 .DS_Store
 Thumbs.db
+
+# Output directories
 results/
 keras_tuner_dir/
+
+# Log and data files (including CSVs)
 *.log
 *.log.*
 *.pkl
 *.h5
 *.keras
 *.joblib
+*.csv
+
+# Distribution / packaging
 dist/
 build/
 *.egg-info/
 *.egg
+
+# Jupyter Notebook checkpoints
 .ipynb_checkpoints
